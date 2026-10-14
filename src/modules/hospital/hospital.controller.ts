@@ -1,0 +1,67 @@
+import asyncHandler from "../../utils/asyncHandler";
+import pickValidFields from "../../utils/pickValidFields";
+import { HOSPITAL_VALID_FIELDS } from "./hospital.constant";
+import HospitalService from "./hospital.service";
+
+const createHospital = asyncHandler(async (req, res) => {
+  const result = await HospitalService.createHospital(req);
+  res.status(200).json({
+    success: true,
+    message: "Hospital is created successfully",
+    data: result,
+  });
+});
+
+const getHospitals = asyncHandler(async (req, res) => {
+  const validatedQuery = pickValidFields(req.query, HOSPITAL_VALID_FIELDS);
+  const result = await HospitalService.getHospitals(validatedQuery);
+  res.status(200).json({
+    success: true,
+    message: "Hospitals are retrieved successfully",
+    meta: result.meta,
+    data: result.data,
+  });
+});
+
+const getHospitalById = asyncHandler(async (req, res) => {
+  const { hospitalId } = req.params;
+  const result = await HospitalService.getHospitalById(hospitalId as string);
+  res.status(200).json({
+    success: true,
+    message: "Hospital is retrieved successfully",
+    data: result,
+  });
+});
+
+const updateHospital = asyncHandler(async (req, res) => {
+  const { hospitalId } = req.params;
+  const result = await HospitalService.updateHospital(
+    hospitalId as string,
+    req,
+  );
+  res.status(200).json({
+    success: true,
+    message: "Hospital is updated successfully",
+    data: result,
+  });
+});
+
+const deleteHospital = asyncHandler(async (req, res) => {
+  const { hospitalId } = req.params;
+  const result = await HospitalService.deleteHospital(hospitalId as string);
+  res.status(200).json({
+    success: true,
+    message: "Hospital is deleted successfully",
+    data: result,
+  });
+});
+
+const HospitalController = {
+  createHospital,
+  getHospitals,
+  getHospitalById,
+  updateHospital,
+  deleteHospital,
+};
+
+export default HospitalController;
