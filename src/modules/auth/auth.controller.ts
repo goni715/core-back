@@ -9,10 +9,20 @@ import isObjectId from "../../utils/isObjectId";
 
 const registerPatient = asyncHandler(async (req, res) => {
   const result = await AuthService.registerPatient(req.body);
-  res.status(200).json({
+  res.status(201).json({
     success: true,
     message: result.message,
-    data: null,
+    data: result.data || null,
+  });
+});
+
+const registerDoctor = asyncHandler(async (req, res) => {
+  const result = await AuthService.registerDoctor(req);
+  res.status(201).json({
+    success: true,
+    message:
+      "Doctor registration submitted successfully. It is pending admin approval.",
+    data: result,
   });
 });
 
@@ -294,6 +304,7 @@ const deleteAccount = asyncHandler(async (req, res) => {
 
 const AuthController = {
   registerPatient,
+  registerDoctor,
   verifyAccount,
   resendVerificationEmail,
   loginUser,

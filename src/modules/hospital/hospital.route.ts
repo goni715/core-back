@@ -35,7 +35,6 @@ router.patch(
   "/update-hospital/:hospitalId",
   authMiddleware(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN),
   upload.single("image"),
-  parseFormDataJson,
   validationMiddleware(updateHospitalValidationSchema),
   HospitalController.updateHospital,
 );

@@ -9,6 +9,7 @@ import {
   emailValidationSchema,
   loginValidationSchema,
   refreshTokenValidationSchema,
+  registerDoctorValidationSchema,
   registerPatientValidationSchema,
   setNewPasswordValidationSchema,
   verifyOtpValidationSchema,
@@ -16,6 +17,7 @@ import {
 import AuthMiddleware from "../../middlewares/authMiddleware";
 import { USER_ROLES } from "../user/user.constant";
 import { authRateLimiter } from "../../middlewares/rateLimiter";
+import upload from "../../helpers/upload";
 
 const router = express.Router();
 
@@ -23,6 +25,13 @@ router.post(
   "/register-patient",
   validationMiddleware(registerPatientValidationSchema),
   AuthController.registerPatient,
+);
+
+router.post(
+  "/register-doctor",
+  upload.single("image"),
+  validationMiddleware(registerDoctorValidationSchema),
+  AuthController.registerDoctor,
 );
 
 router.post(

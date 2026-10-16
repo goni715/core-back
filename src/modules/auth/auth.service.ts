@@ -35,9 +35,13 @@ import { checkPassword, hashedPassword } from "../../helpers/PasswordHelper";
 import { IUser, TAccountStatus } from "../user/user.interface";
 import { generateResetToken } from "../../utils/generateResetToken";
 import decrypt from "../../utils/decrypt";
+import DoctorModel from "../doctor/doctor.model";
+import { DOCTOR_APPROVAL_STATUS, DOCTOR_REGISTRATION_SOURCE, DOCTOR_STATUS, DOCTOR_TITLE } from "../doctor/doctor.constant";
+import uploadToCloudinary from "../../utils/uploadToCloudinary";
+import deleteFromCloudinary from "../../utils/deleteFromCloudinary";
 
 /*============ register patient  ============*/
-const registerPatient = async (payload: IUser) => {
+const registerPatientDraft = async (payload: IUser) => {
   const { email } = payload;
 
   //check email
@@ -110,6 +114,181 @@ const registerPatient = async (payload: IUser) => {
     throw err;
   } finally {
     await session.endSession();
+  }
+};
+
+/*============ register patient (Without OTP) ============*/
+const registerPatient = async (payload: IUser) => {
+  const { email, password, fullName, phone } = payload;
+
+  // 1. Check if user with this email already exists
+  const existingUser = await UserModel.findOne({ email });
+  if (existingUser) {
+    if (existingUser.status === ACCOUNT_STATUS.BLOCKED) {
+      throw new ForbiddenError("Your account is blocked.");
+    }
+    throw new ConflictError("An account with this email already exists.");
+  }
+
+  // 2. Create new patient directly active & email verified
+  const newUser = await UserModel.create({
+    fullName,
+    email,
+    phone,
+    password,
+    role: USER_ROLES.PATIENT,
+    isEmailVerified: true,
+    emailVerifiedAt: new Date(),
+    status: ACCOUNT_STATUS.ACTIVE,
+  });
+
+  return {
+    message: "Patient registered successfully.",
+    data: {
+      _id: newUser._id,
+      fullName: newUser.fullName,
+      email: newUser.email,
+      phone: newUser.phone,
+      role: newUser.role,
+      status: newUser.status,
+      isEmailVerified: newUser.isEmailVerified,
+      createdAt: newUser.createdAt,
+    },
+  };
+};
+
+/*=========== register doctor (Self-registration) ============*/
+const registerDoctor = async (req: any) => {
+  const payload = req.body || req;
+  let uploadedImage: { img_url: string; public_id: string } | null = null;
+
+  try {
+    // 1. Handle profile image from file upload or payload if present
+    if (req.file) {
+      uploadedImage = await uploadToCloudinary(req.file.path, "doctor");
+      payload.profileImg = uploadedImage.img_url;
+    }
+
+    const {
+      title = DOCTOR_TITLE.DR,
+      fullName,
+      email,
+      phone,
+      specialization,
+      city,
+      bmdcNumber,
+      password,
+      profileImg = "",
+      hospital = "",
+      country = "Bangladesh",
+    } = payload;
+
+    // 2. Check if user with this email already exists
+    const existingUser = await UserModel.findOne({ email });
+    if (existingUser) {
+      if (existingUser.status === ACCOUNT_STATUS.BLOCKED) {
+        throw new ForbiddenError("Your account is blocked.");
+      }
+      if (existingUser.status === ACCOUNT_STATUS.ACTIVE) {
+        throw new ConflictError("An account with this email already exists.");
+      }
+      
+      throw new ConflictError(
+        "A registration request with this email is already submitted and pending admin approval.",
+      );
+    }
+
+    // 3. Check if doctor with this BMDC number already exists
+    const existingDoctor = await DoctorModel.findOne({ bmdcNumber });
+    if (existingDoctor) {
+      throw new ConflictError(
+        "A doctor with this BMDC Number already exists.",
+      );
+    }
+
+    // 4. Transaction to create User and Doctor profile
+    const session = await mongoose.startSession();
+    try {
+      session.startTransaction();
+
+      // Create User account (status: pending, role: doctor)
+      const newUser = await UserModel.create(
+        [
+          {
+            fullName,
+            email,
+            phone,
+            profileImg,
+            password,
+            role: USER_ROLES.DOCTOR,
+            isEmailVerified: true,
+            emailVerifiedAt: new Date(),
+            status: ACCOUNT_STATUS.PENDING,
+          },
+        ],
+        { session },
+      );
+
+      const createdUser = newUser[0];
+      if (!createdUser) {
+        throw new BadRequestError("Failed to create user account");
+      }
+
+      // Create Doctor profile (approvalStatus: pending, status: draft)
+      const newDoctor = await DoctorModel.create(
+        [
+          {
+            userId: createdUser._id,
+            title,
+            specialization,
+            city,
+            bmdcNumber,
+            ...(hospital && { hospital }),
+            ...(country && { country }),
+            approvalStatus: DOCTOR_APPROVAL_STATUS.PENDING,
+            status: DOCTOR_STATUS.DRAFT,
+            registrationSource: DOCTOR_REGISTRATION_SOURCE.SELF,
+          },
+        ],
+        { session },
+      );
+
+      const createdDoctor = newDoctor[0];
+      if (!createdDoctor) {
+        throw new BadRequestError("Failed to create doctor profile");
+      }
+
+      await session.commitTransaction();
+
+      return {
+        _id: createdDoctor._id,
+        userId: createdUser._id,
+        fullName: createdUser.fullName,
+        email: createdUser.email,
+        phone: createdUser.phone,
+        profileImg: createdUser.profileImg,
+        role: createdUser.role,
+        title: createdDoctor.title,
+        specialization: createdDoctor.specialization,
+        city: createdDoctor.city,
+        bmdcNumber: createdDoctor.bmdcNumber,
+        approvalStatus: createdDoctor.approvalStatus,
+        status: createdDoctor.status,
+        registrationSource: createdDoctor.registrationSource,
+        createdAt: createdDoctor.createdAt,
+      };
+    } catch (err) {
+      await session.abortTransaction();
+      throw err;
+    } finally {
+      await session.endSession();
+    }
+  } catch (error) {
+    // Rollback uploaded image in case of error
+    if (uploadedImage?.public_id) {
+      await deleteFromCloudinary(uploadedImage.public_id);
+    }
+    throw error;
   }
 };
 
@@ -252,6 +431,26 @@ const loginUser = async (payload: ILogin, ip: string) => {
   //check you are not patient or doctor
   if (!["patient", "doctor"].includes(user.role)) {
     throw new ForbiddenError(`Sorry! You have no access to login.`);
+  }
+
+  // If user is a doctor, verify approval status
+  if (user.role === USER_ROLES.DOCTOR) {
+    const doctorProfile = await DoctorModel.findOne({ userId: user._id });
+    if (doctorProfile) {
+      if (doctorProfile.approvalStatus === DOCTOR_APPROVAL_STATUS.PENDING) {
+        throw new ForbiddenError(
+          "Your registration is pending admin approval. You will be able to log in once approved.",
+        );
+      }
+      if (doctorProfile.approvalStatus === DOCTOR_APPROVAL_STATUS.REJECTED) {
+        const reason = doctorProfile.rejectionReason
+          ? ` Reason: ${doctorProfile.rejectionReason}`
+          : "";
+        throw new ForbiddenError(
+          `Your registration was rejected by administrator.${reason}`,
+        );
+      }
+    }
   }
 
   //transaction & rollback
@@ -983,6 +1182,8 @@ const deleteAccount = async (loginUserId: string, password: string) => {
 
 const AuthService = {
   registerPatient,
+  registerPatientDraft,
+  registerDoctor,
   verifyAccount,
   resendVerificationEmail,
   loginUser,

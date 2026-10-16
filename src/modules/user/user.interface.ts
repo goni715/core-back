@@ -20,6 +20,8 @@ export interface IUser extends Document {
   passwordChangedAt?: Date;
   lastLoginAt?: Date;
   tokenVersion: number;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 

@@ -2,7 +2,7 @@
 
 import cloudinary from "../helpers/cloudinary";
 
-export type TFolder = 'user' | 'hospital';
+export type TFolder = 'user' | 'hospital' | 'doctor';
 
 const uploadToCloudinary = async (path: string, folder: TFolder) => {
   try {

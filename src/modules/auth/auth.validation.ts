@@ -3,6 +3,7 @@ import { requiredStringSchema } from "../../schemas/required.schema";
 import { booleanSchema } from "../../schemas/boolean.schema";
 import { enumSchema } from "../../schemas/enum.schema";
 import isObjectId from "../../utils/isObjectId";
+import { DOCTOR_TITLE, DOCTOR_TITLE_VALUES } from "../doctor/doctor.constant";
 
 
 export const fullNameRegex = /^[A-Za-z\s'.-]+$/;
@@ -54,6 +55,19 @@ export const registerPatientValidationSchema = z.object({
     fullName: fullNameZodSchema,
     email: emailZodSchema,
     phone: phoneNumberZodSchema,
+    password: passwordZodSchema,
+  }),
+});
+
+export const registerDoctorValidationSchema = z.object({
+  body: z.object({
+    title: enumSchema('title', DOCTOR_TITLE_VALUES).default(DOCTOR_TITLE.DR),
+    fullName: fullNameZodSchema,
+    email: emailZodSchema,
+    phone: phoneNumberZodSchema,
+    specialization: requiredStringSchema("specialization"),
+    city: requiredStringSchema("city"),
+    bmdcNumber: requiredStringSchema("bmdcNumber"),
     password: passwordZodSchema,
   }),
 });

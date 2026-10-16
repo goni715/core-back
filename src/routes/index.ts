@@ -7,6 +7,7 @@ import FaqRoutes from "../modules/faq/faq.route";
 import ContentRoutes from "../modules/content/content.route";
 import SupportRoutes from "../modules/support/support.route";
 import DashboardRoutes from "../modules/dashboard/dashboard.route";
+import ComparisonRoutes from "../modules/comparison/comparison.route";
 
 const router = express.Router();
 
@@ -42,6 +43,10 @@ const moduleRoutes = [
   {
     path: "/dashboard",
     route: DashboardRoutes,
+  },
+  {
+    path: "/comparison",
+    route: ComparisonRoutes,
   },
 ];
 
