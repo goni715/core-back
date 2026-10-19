@@ -46,14 +46,6 @@ export const createHospitalValidationSchema = z.object({
     contactNumber: contactNumberZodSchema,
     email: emailZodSchema,
     website: z.url("Invalid website format").optional(),
-    specialities: z
-      .preprocess(parseArrayField, z.array(z.string()))
-      .optional()
-      .default([]),
-    languages: z
-      .preprocess(parseArrayField, z.array(z.string()))
-      .optional()
-      .default([]),
     status: enumSchema('status', HOSPITAL_STATUS_VALUES).default(HOSPITAL_STATUS.DRAFT),
   }),
 });
@@ -68,14 +60,8 @@ export const updateHospitalValidationSchema = z.object({
     contactNumber: contactNumberZodSchema.optional(),
     email: emailZodSchema.optional(),
     website: z.url("Invalid website format").optional(),
-    specialities: z
-      .preprocess(parseArrayField, z.array(z.string()))
-      .optional(),
-    languages: z
-      .preprocess(parseArrayField, z.array(z.string()))
-      .optional(),
     status: z
-      .enum([HOSPITAL_STATUS.DRAFT, HOSPITAL_STATUS.PUBLISHED])
+      .enum([HOSPITAL_STATUS.DRAFT, HOSPITAL_STATUS.PUBLISHED, HOSPITAL_STATUS.ARCHIVE])
       .optional(),
     ratings: z.number().min(0).max(5).optional(),
     totalReviews: z.number().min(0).optional(),

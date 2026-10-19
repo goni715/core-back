@@ -21,7 +21,7 @@ router.get("/published", DoctorController.getPublishedDoctors);
 router.post(
   "/create-doctor",
   authMiddleware(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN),
-  upload.single("profileImg"),
+  upload.single("image"),
   validationMiddleware(createDoctorValidationSchema),
   DoctorController.createDoctor,
 );

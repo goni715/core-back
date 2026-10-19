@@ -3,7 +3,11 @@ import { requiredStringSchema } from "../../schemas/required.schema";
 import { booleanSchema } from "../../schemas/boolean.schema";
 import { enumSchema } from "../../schemas/enum.schema";
 import isObjectId from "../../utils/isObjectId";
-import { DOCTOR_TITLE, DOCTOR_TITLE_VALUES } from "../doctor/doctor.constant";
+import {
+  DOCTOR_SPECIALIZATION_VALUES,
+  DOCTOR_TITLE,
+  DOCTOR_TITLE_VALUES,
+} from "../doctor/doctor.constant";
 
 
 export const fullNameRegex = /^[A-Za-z\s'.-]+$/;
@@ -65,8 +69,7 @@ export const registerDoctorValidationSchema = z.object({
     fullName: fullNameZodSchema,
     email: emailZodSchema,
     phone: phoneNumberZodSchema,
-    specialization: requiredStringSchema("specialization"),
-    city: requiredStringSchema("city"),
+    specialization: enumSchema("specialization", DOCTOR_SPECIALIZATION_VALUES),
     bmdcNumber: requiredStringSchema("bmdcNumber"),
     password: passwordZodSchema,
   }),
@@ -141,7 +144,7 @@ export const setNewPasswordValidationSchema = z.object({
   }),
 });
 
-const statusZodSchema = enumSchema('status', ['blocked', 'active'])
+const statusZodSchema = enumSchema('status', ['blocked', 'active', 'pending'])
 
 export const changeStatusValidationSchema = z.object({
   params: z.object({

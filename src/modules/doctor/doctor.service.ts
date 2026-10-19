@@ -16,7 +16,11 @@ import {
   DOCTOR_STATUS,
   DOCTOR_TITLE,
 } from "./doctor.constant";
-import { IDoctor, TDoctorQuery } from "./doctor.interface";
+import {
+  TCreateDoctorPayload,
+  TDoctorQuery,
+  TUpdateDoctorPayload,
+} from "./doctor.interface";
 import DoctorModel from "./doctor.model";
 
 /*=========== admin approval / rejection ============*/
@@ -57,6 +61,7 @@ const approveOrRejectDoctor = async (
         { status: ACCOUNT_STATUS.ACTIVE },
         { session },
       );
+
     } else if (approvalStatus === DOCTOR_APPROVAL_STATUS.REJECTED) {
       doctor.approvalStatus = DOCTOR_APPROVAL_STATUS.REJECTED;
       doctor.rejectedAt = new Date();
@@ -79,12 +84,7 @@ const approveOrRejectDoctor = async (
 
     await session.commitTransaction();
 
-    const updatedDoctor = await DoctorModel.findById(doctorId)
-      .populate("userId", "fullName email phone profileImg status role")
-      .populate("approvedBy", "fullName email")
-      .populate("rejectedBy", "fullName email");
-
-    return updatedDoctor;
+    return null;
   } catch (error) {
     await session.abortTransaction();
     throw error;
@@ -119,107 +119,149 @@ const changeDoctorStatus = async (
   doctor.status = status;
   await doctor.save();
 
-  const updatedDoctor = await DoctorModel.findById(doctorId).populate(
-    "userId",
-    "fullName email phone profileImg status role",
-  );
-
-  return updatedDoctor;
+  return doctor;
 };
 
 /*=========== create doctor (Admin creation) ============*/
-const createDoctor = async (reqOrPayload: any) => {
-  let payload: any;
+const createDoctor = async (req: any) => {
+  const payload = req.body as TCreateDoctorPayload;
+
+  const {
+    email,
+    password,
+    fullName,
+    phone,
+    bmdcNumber,
+    title = DOCTOR_TITLE.DR,
+    status = DOCTOR_STATUS.PUBLISHED,
+    approvalStatus = DOCTOR_APPROVAL_STATUS.APPROVED,
+    qualifications,
+    ...doctorData
+  } = payload;
+
+  delete (doctorData as any).isOnline;
+
+  // Check user
+  const user = await UserModel.findOne({ email });
+  if (user) {
+    throw new ConflictError("An account with this email already exists.");
+  }
+
+  // Check phone
+  if (phone) {
+    const existingPhone = await UserModel.findOne({ phone });
+    if (existingPhone) {
+      throw new ConflictError(
+        "An account with this phone number already exists.",
+      );
+    }
+  }
+
+  // Check BMDC number
+  if (bmdcNumber) {
+    const existingDoctor = await DoctorModel.findOne({ bmdcNumber });
+    if (existingDoctor) {
+      throw new ConflictError(
+        "A doctor with this BMDC Number already exists.",
+      );
+    }
+  }
+
+  // Check image
+  if (!req.file) {
+    throw new BadRequestError("Image is required");
+  }
+
+  const defaultPassword =
+    password || (config.admin.doctor_default_password as string);
+
   let uploadedImage: { img_url: string; public_id: string } | null = null;
 
   try {
-    if (reqOrPayload && reqOrPayload.body) {
-      payload = reqOrPayload.body;
-      if (reqOrPayload.file) {
-        uploadedImage = await uploadToCloudinary(
-          reqOrPayload.file.path,
-          "doctor",
-        );
-        payload.profileImg = uploadedImage.img_url;
+    // Upload image to Cloudinary
+    uploadedImage = await uploadToCloudinary(
+      req.file.path,
+      "doctor",
+    );
+    const profileImgUrl = uploadedImage.img_url;
+
+    const session = await mongoose.startSession();
+    try {
+      session.startTransaction();
+
+      // 1. Create user account
+      const newUser = await UserModel.create(
+        [
+          {
+            fullName,
+            email,
+            phone,
+            profileImg: profileImgUrl,
+            password: defaultPassword,
+            role: USER_ROLES.DOCTOR,
+            isEmailVerified: true,
+            emailVerifiedAt: new Date(),
+            status: ACCOUNT_STATUS.ACTIVE,
+          },
+        ],
+        { session },
+      );
+
+      const createdUser = newUser[0];
+      if (!createdUser) {
+        throw new BadRequestError("Failed to create user account");
       }
-    } else {
-      payload = reqOrPayload;
-    }
 
-    const {
-      email,
-      password,
-      fullName,
-      phone,
-      profileImg,
-      bmdcNumber,
-      title = DOCTOR_TITLE.DR,
-      status = DOCTOR_STATUS.PUBLISHED,
-      approvalStatus = DOCTOR_APPROVAL_STATUS.APPROVED,
-      ...doctorData
-    } = payload;
+      // 2. Create doctor profile
+      const doctor = await DoctorModel.create(
+        [
+          {
+            ...doctorData,
+            title,
+            bmdcNumber,
+            qualifications:
+              typeof qualifications === "string"
+                ? qualifications.trim()
+                : String(qualifications || ""),
+            userId: createdUser._id,
+            approvalStatus,
+            ...(approvalStatus === DOCTOR_APPROVAL_STATUS.APPROVED && {
+              approvedAt: new Date(),
+            }),
+            status:
+              approvalStatus === DOCTOR_APPROVAL_STATUS.APPROVED
+                ? status
+                : DOCTOR_STATUS.DRAFT,
+            registrationSource: DOCTOR_REGISTRATION_SOURCE.ADMIN,
+          },
+        ],
+        { session },
+      );
 
-    // Check user
-    const user = await UserModel.findOne({ email });
-    if (user) {
-      throw new ConflictError("An account with this email already exists.");
-    }
-
-    // Check BMDC number
-    if (bmdcNumber) {
-      const existingDoctor = await DoctorModel.findOne({ bmdcNumber });
-      if (existingDoctor) {
-        throw new ConflictError(
-          "A doctor with this BMDC Number already exists.",
-        );
+      const createdDoctor = doctor[0];
+      if (!createdDoctor) {
+        throw new BadRequestError("Failed to create doctor profile");
       }
+
+      await session.commitTransaction();
+
+      const doctorObj = createdDoctor.toObject();
+
+      return {
+        ...doctorObj,
+        userId: createdUser._id,
+        fullName: createdUser.fullName,
+        email: createdUser.email,
+        phone: createdUser.phone,
+        profileImg: createdUser.profileImg,
+        role: createdUser.role,
+      };
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      await session.endSession();
     }
-
-    const defaultPassword =
-      password || (config.admin.doctor_default_password as string);
-
-    // 1. Create user account
-    const newUser = await UserModel.create({
-      fullName,
-      email,
-      phone,
-      profileImg: profileImg || "",
-      password: defaultPassword,
-      role: USER_ROLES.DOCTOR,
-      isEmailVerified: true,
-      emailVerifiedAt: new Date(),
-      status: ACCOUNT_STATUS.ACTIVE,
-    });
-
-    // 2. Create doctor profile
-    const doctor = await DoctorModel.create({
-      ...doctorData,
-      title,
-      bmdcNumber,
-      userId: newUser._id,
-      approvalStatus,
-      approvedAt:
-        approvalStatus === DOCTOR_APPROVAL_STATUS.APPROVED
-          ? new Date()
-          : undefined,
-      status:
-        approvalStatus === DOCTOR_APPROVAL_STATUS.APPROVED
-          ? status
-          : DOCTOR_STATUS.DRAFT,
-      registrationSource: DOCTOR_REGISTRATION_SOURCE.ADMIN,
-    });
-
-    const doctorObj = doctor.toObject();
-
-    return {
-      ...doctorObj,
-      userId: newUser._id,
-      fullName: newUser.fullName,
-      email: newUser.email,
-      phone: newUser.phone,
-      profileImg: newUser.profileImg,
-      role: newUser.role,
-    };
   } catch (error) {
     if (uploadedImage?.public_id) {
       await deleteFromCloudinary(uploadedImage.public_id);
@@ -240,6 +282,7 @@ const getDoctors = async (query: TDoctorQuery) => {
     approvalStatus,
     registrationSource,
     userStatus,
+    isOnline,
     ...filters
   } = query;
 
@@ -275,6 +318,11 @@ const getDoctors = async (query: TDoctorQuery) => {
 
   if (userStatus) {
     filterQuery["user.status"] = userStatus;
+  }
+
+  if (isOnline !== undefined) {
+    filterQuery["isOnline"] =
+      typeof isOnline === "boolean" ? isOnline : isOnline === "true";
   }
 
   // Aggregate pipeline joining Doctor with User
@@ -316,38 +364,36 @@ const getDoctors = async (query: TDoctorQuery) => {
     {
       $project: {
         _id: 1,
-        userId: 1,
-        fullName: 1,
-        email: 1,
-        phone: 1,
-        profileImg: 1,
-        userStatus: 1,
-        title: 1,
-        specialization: 1,
-        hospital: 1,
-        country: 1,
-        city: 1,
-        bmdcNumber: 1,
-        experience: 1,
-        fee: 1,
-        languages: 1,
-        about: 1,
-        qualifications: 1,
-        consultationTypes: 1,
-        availabilityLabel: 1,
-        availableDays: 1,
-        rating: 1,
-        totalReviews: 1,
-        approvalStatus: 1,
-        approvedAt: 1,
-        approvedBy: 1,
-        rejectedAt: 1,
-        rejectedBy: 1,
-        rejectionReason: 1,
-        status: 1,
-        registrationSource: 1,
-        createdAt: 1,
-        updatedAt: 1,
+        userId: "$userId",
+        title: "$title",
+        fullName: "$fullName",
+        email: "$email",
+        phone: "$phone",
+        profileImg: "$profileImg",
+        userStatus: "$userStatus",
+        specialization: "$specialization",
+        hospital: "$hospital",
+        designation: "$designation",
+        education: "$education",
+        consultationFee: "$consultationFee",
+        address: "$address",
+        bmdcNumber: "$bmdcNumber",
+        experience: "$experience",
+        about: "$about",
+        qualifications: "$qualifications",
+        rating: "$rating",
+        totalReviews: "$totalReviews",
+        isOnline: "$isOnline",
+        approvalStatus: "$approvalStatus",
+        approvedAt: "$approvedAt",
+        approvedBy: "$approvedBy",
+        rejectedAt: "$rejectedAt",
+        rejectedBy: "$rejectedBy",
+        rejectionReason: "$rejectionReason",
+        status: "$status",
+        registrationSource: "$registrationSource",
+        createdAt: "$createdAt",
+        updatedAt: "$updatedAt",
       },
     },
     { $sort: { [sortBy]: sortDirection } },
@@ -414,31 +460,83 @@ const getDoctorById = async (doctorId: string) => {
 };
 
 /*============== update doctor ================== */
-const updateDoctor = async (doctorId: string, payload: any) => {
+const updateDoctor = async (
+  doctorId: string,
+  reqOrPayload: Request | TUpdateDoctorPayload | any,
+) => {
   const doctor = await DoctorModel.findById(doctorId);
   if (!doctor) {
     throw new NotFoundError("Doctor not found with the provided ID");
   }
 
-  const { fullName, phone, profileImg, ...doctorData } = payload;
+  let payload: any;
+  let uploadedImage: { img_url: string; public_id: string } | null = null;
 
-  // Update user fields if provided
-  if (fullName || phone || profileImg) {
-    await UserModel.findByIdAndUpdate(doctor.userId, {
-      ...(fullName && { fullName }),
-      ...(phone && { phone }),
-      ...(profileImg && { profileImg }),
-    });
+  try {
+    if (reqOrPayload && reqOrPayload.body) {
+      payload = reqOrPayload.body;
+      if (reqOrPayload.file) {
+        uploadedImage = await uploadToCloudinary(
+          reqOrPayload.file.path,
+          "doctor",
+        );
+        payload.profileImg = uploadedImage.img_url;
+      }
+    } else {
+      payload = reqOrPayload;
+    }
+
+    const { fullName, phone, profileImg, ...doctorData } = payload;
+
+    // Check phone uniqueness if phone is being updated
+    if (phone) {
+      const existingPhone = await UserModel.findOne({
+        phone,
+        _id: { $ne: doctor.userId },
+      });
+      if (existingPhone) {
+        throw new ConflictError(
+          "An account with this phone number already exists.",
+        );
+      }
+    }
+
+    // Check BMDC uniqueness if bmdcNumber is being updated
+    if (doctorData.bmdcNumber) {
+      const existingBmdc = await DoctorModel.findOne({
+        bmdcNumber: doctorData.bmdcNumber,
+        _id: { $ne: doctorId },
+      });
+      if (existingBmdc) {
+        throw new ConflictError(
+          "A doctor with this BMDC Number already exists.",
+        );
+      }
+    }
+
+    // Update user fields if provided
+    if (fullName || phone || profileImg) {
+      await UserModel.findByIdAndUpdate(doctor.userId, {
+        ...(fullName && { fullName }),
+        ...(phone && { phone }),
+        ...(profileImg && { profileImg }),
+      });
+    }
+
+    // Update doctor fields
+    const updatedDoctor = await DoctorModel.findByIdAndUpdate(
+      doctorId,
+      { $set: doctorData },
+      { new: true, runValidators: true },
+    ).populate("userId", "fullName email phone profileImg status role");
+
+    return updatedDoctor;
+  } catch (error) {
+    if (uploadedImage?.public_id) {
+      await deleteFromCloudinary(uploadedImage.public_id);
+    }
+    throw error;
   }
-
-  // Update doctor fields
-  const updatedDoctor = await DoctorModel.findByIdAndUpdate(
-    doctorId,
-    { $set: doctorData },
-    { new: true, runValidators: true },
-  ).populate("userId", "fullName email phone profileImg status role");
-
-  return updatedDoctor;
 };
 
 /*============== delete doctor ================== */

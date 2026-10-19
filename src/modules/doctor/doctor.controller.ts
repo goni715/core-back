@@ -80,7 +80,7 @@ const getDoctorById = asyncHandler(async (req, res) => {
 
 const updateDoctor = asyncHandler(async (req, res) => {
   const { doctorId } = req.params;
-  const result = await DoctorService.updateDoctor(doctorId as string, req.body);
+  const result = await DoctorService.updateDoctor(doctorId as string, req);
   res.status(200).json({
     success: true,
     message: "Doctor is updated successfully",

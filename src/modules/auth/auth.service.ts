@@ -40,74 +40,185 @@ import { DOCTOR_APPROVAL_STATUS, DOCTOR_REGISTRATION_SOURCE, DOCTOR_STATUS, DOCT
 import uploadToCloudinary from "../../utils/uploadToCloudinary";
 import deleteFromCloudinary from "../../utils/deleteFromCloudinary";
 
-/*============ register patient  ============*/
-const registerPatientDraft = async (payload: IUser) => {
-  const { email } = payload;
+/*============ register patient (With OTP) ============*/
+const registerPatient = async (payload: IUser) => {
+  const email = payload.email?.toLowerCase()?.trim();
+  const phone = payload.phone?.trim();
+  const fullName = payload.fullName?.trim();
+  const password = payload.password;
 
-  //check email
-  const user = await UserModel.findOne({ email });
+  // 1. Check if user with this email already exists
+  const existingUser = await UserModel.findOne({ email });
 
-  if (user) {
-    //User already exists and but blocked
-    if (user.status === ACCOUNT_STATUS.BLOCKED) {
+  if (existingUser) {
+    // If account is blocked
+    if (existingUser.status === ACCOUNT_STATUS.BLOCKED) {
       throw new ForbiddenError("Your account is blocked.");
     }
 
-    //user already active
-    if (user.status === ACCOUNT_STATUS.ACTIVE) {
+    // If account is already verified or active
+    if (existingUser.status === ACCOUNT_STATUS.ACTIVE || existingUser.isEmailVerified) {
       throw new ConflictError("An account with this email already exists.");
     }
 
-    //User not verified → resend verification
+    // Account exists but is unverified (Pending) -> Check OTP cooldown
+    const existingOtp = await OtpModel.findOne({
+      userId: existingUser._id,
+      email,
+      type: OTP_TYPE.REGISTER,
+    });
+
+    if (existingOtp) {
+      const now = Date.now();
+      const updated = new Date(existingOtp.updatedAt).getTime();
+      const oneMinute = 1 * 60 * 1000;
+      if (now - updated < oneMinute) {
+        throw new ConflictError("OTP can only be resent after 1 minute");
+      }
+    }
+
+    // If phone number is changed, check uniqueness
+    if (phone && phone !== existingUser.phone) {
+      const existingPhone = await UserModel.findOne({
+        phone,
+        _id: { $ne: existingUser._id },
+      });
+      if (existingPhone) {
+        if (existingPhone.status === ACCOUNT_STATUS.BLOCKED) {
+          throw new ForbiddenError("Your account is blocked.");
+        }
+        if (existingPhone.status === ACCOUNT_STATUS.ACTIVE || existingPhone.isEmailVerified) {
+          throw new ConflictError("An account with this phone number already exists.");
+        }
+        // If other account holding this phone is unverified, remove stale record
+        await OtpModel.deleteMany({ userId: existingPhone._id });
+        await UserModel.deleteOne({ _id: existingPhone._id });
+      }
+      existingUser.phone = phone;
+    }
+
+    if (fullName) existingUser.fullName = fullName;
+    if (password) existingUser.password = password; // pre-save hook will hash password
+
     const otp = generateOTP();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-    //update otp
-    await OtpModel.updateOne(
-      { email, userId: user._id },
-      { otp, expiresAt: new Date(+new Date() + 600000) },
-      { upsert: true, runValidators: true },
-    );
+    //transaction & rollback
+    const session = await mongoose.startSession();
 
-    //send verification email
-    await sendVerificationEmail(email, otp.toString());
+    try {
+      session.startTransaction();
 
-    return {
-      message: "Verification email resent. Please check your inbox.",
-    };
+      // Save updated user data
+      await existingUser.save({ session });
+
+      //update otp
+      await OtpModel.updateOne(
+        { email, userId: existingUser._id },
+        { otp, expiresAt, type: OTP_TYPE.REGISTER, isVerified: false },
+        { upsert: true, runValidators: true, session },
+      );
+
+      //transaction success
+      await session.commitTransaction();
+
+      // Resend verification email
+      await sendVerificationEmail(email, otp.toString());
+
+      return {
+        message: "Verification email resent. Please check your inbox.",
+        data: {
+          _id: existingUser._id,
+          fullName: existingUser.fullName,
+          email: existingUser.email,
+          phone: existingUser.phone,
+          createdAt: existingUser.createdAt,
+        },
+      };
+    } catch (err) {
+      await session.abortTransaction();
+      throw err;
+    } finally {
+      await session.endSession();
+    }
   }
 
-  //generate otp
-  const otp = generateOTP();
+  // 2. Check if user with this phone already exists
+  if (phone) {
+    const existingPhone = await UserModel.findOne({ phone });
+    if (existingPhone) {
+      if (existingPhone.status === ACCOUNT_STATUS.BLOCKED) {
+        throw new ForbiddenError("Your account is blocked.");
+      }
+      if (existingPhone.status === ACCOUNT_STATUS.ACTIVE || existingPhone.isEmailVerified) {
+        throw new ConflictError("An account with this phone number already exists.");
+      }
 
-  //transaction & rollback
+      // existingPhone is unverified (status: PENDING, isEmailVerified: false)
+      // Since this previous registration attempt was never verified, clean up the stale unverified user
+      await OtpModel.deleteMany({ userId: existingPhone._id });
+      await UserModel.deleteOne({ _id: existingPhone._id });
+    }
+  }
+
+  // 3. Generate 6-digit OTP
+  const otp = generateOTP();
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+  // 4. Transaction to create user with status PENDING and OTP record
   const session = await mongoose.startSession();
 
   try {
     session.startTransaction();
 
-    //create new user
-    const newUser = await UserModel.create([{ ...payload, role: USER_ROLES.PATIENT }], { session });
-
-    //create otp
-    await OtpModel.create(
+    const newUser = await UserModel.create(
       [
         {
-          userId: newUser[0]?._id as mongoose.Types.ObjectId,
+          fullName,
           email,
-          otp,
+          phone,
+          password,
+          role: USER_ROLES.PATIENT,
+          isEmailVerified: false,
+          status: ACCOUNT_STATUS.PENDING,
         },
       ],
       { session },
     );
 
-    //transaction success
+    const createdUser = newUser[0];
+    if (!createdUser) {
+      throw new BadRequestError("Failed to register patient");
+    }
+
+    await OtpModel.create(
+      [
+        {
+          userId: createdUser._id,
+          email,
+          otp,
+          type: OTP_TYPE.REGISTER,
+          expiresAt,
+          isVerified: false,
+        },
+      ],
+      { session },
+    );
+
     await session.commitTransaction();
 
-    //send verification email
+    // Send verification email with OTP
     await sendVerificationEmail(email, otp.toString());
 
     return {
-      message: "Please check your email to verify",
+      message: "Please check your email to verify.",
+      data: {
+        _id: createdUser._id,
+        fullName: createdUser.fullName,
+        email: createdUser.email,
+        phone: createdUser.phone,
+        createdAt: createdUser.createdAt,
+      },
     };
   } catch (err) {
     await session.abortTransaction();
@@ -117,45 +228,7 @@ const registerPatientDraft = async (payload: IUser) => {
   }
 };
 
-/*============ register patient (Without OTP) ============*/
-const registerPatient = async (payload: IUser) => {
-  const { email, password, fullName, phone } = payload;
-
-  // 1. Check if user with this email already exists
-  const existingUser = await UserModel.findOne({ email });
-  if (existingUser) {
-    if (existingUser.status === ACCOUNT_STATUS.BLOCKED) {
-      throw new ForbiddenError("Your account is blocked.");
-    }
-    throw new ConflictError("An account with this email already exists.");
-  }
-
-  // 2. Create new patient directly active & email verified
-  const newUser = await UserModel.create({
-    fullName,
-    email,
-    phone,
-    password,
-    role: USER_ROLES.PATIENT,
-    isEmailVerified: true,
-    emailVerifiedAt: new Date(),
-    status: ACCOUNT_STATUS.ACTIVE,
-  });
-
-  return {
-    message: "Patient registered successfully.",
-    data: {
-      _id: newUser._id,
-      fullName: newUser.fullName,
-      email: newUser.email,
-      phone: newUser.phone,
-      role: newUser.role,
-      status: newUser.status,
-      isEmailVerified: newUser.isEmailVerified,
-      createdAt: newUser.createdAt,
-    },
-  };
-};
+const registerPatientDraft = registerPatient;
 
 /*=========== register doctor (Self-registration) ============*/
 const registerDoctor = async (req: any) => {
@@ -169,49 +242,192 @@ const registerDoctor = async (req: any) => {
       payload.profileImg = uploadedImage.img_url;
     }
 
+    const email = payload.email?.toLowerCase()?.trim();
+    const phone = payload.phone?.trim();
+    const fullName = payload.fullName?.trim();
     const {
       title = DOCTOR_TITLE.DR,
-      fullName,
-      email,
-      phone,
       specialization,
-      city,
       bmdcNumber,
       password,
       profileImg = "",
-      hospital = "",
-      country = "Bangladesh",
     } = payload;
 
     // 2. Check if user with this email already exists
     const existingUser = await UserModel.findOne({ email });
     if (existingUser) {
+      // If account is blocked
       if (existingUser.status === ACCOUNT_STATUS.BLOCKED) {
         throw new ForbiddenError("Your account is blocked.");
       }
-      if (existingUser.status === ACCOUNT_STATUS.ACTIVE) {
+
+      // If account is already verified or active
+      if (existingUser.status === ACCOUNT_STATUS.ACTIVE || existingUser.isEmailVerified) {
         throw new ConflictError("An account with this email already exists.");
       }
-      
-      throw new ConflictError(
-        "A registration request with this email is already submitted and pending admin approval.",
-      );
+
+      // Account exists but is unverified (Pending) -> Check OTP cooldown
+      const existingOtp = await OtpModel.findOne({
+        userId: existingUser._id,
+        email,
+        type: OTP_TYPE.REGISTER,
+      });
+
+      if (existingOtp) {
+        const now = Date.now();
+        const updated = new Date(existingOtp.updatedAt).getTime();
+        const oneMinute = 1 * 60 * 1000;
+        if (now - updated < oneMinute) {
+          throw new ConflictError("OTP can only be resent after 1 minute");
+        }
+      }
+
+      // If phone number is changed, check uniqueness
+      if (phone && phone !== existingUser.phone) {
+        const existingPhone = await UserModel.findOne({
+          phone,
+          _id: { $ne: existingUser._id },
+        });
+        if (existingPhone) {
+          if (existingPhone.status === ACCOUNT_STATUS.BLOCKED) {
+            throw new ForbiddenError("Your account is blocked.");
+          }
+          if (existingPhone.status === ACCOUNT_STATUS.ACTIVE || existingPhone.isEmailVerified) {
+            throw new ConflictError("An account with this phone number already exists.");
+          }
+          // If other account holding this phone is unverified, remove stale record
+          await OtpModel.deleteMany({ userId: existingPhone._id });
+          await DoctorModel.deleteOne({ userId: existingPhone._id });
+          await UserModel.deleteOne({ _id: existingPhone._id });
+        }
+        existingUser.phone = phone;
+      }
+
+      // Check doctor BMDC number uniqueness if changed
+      if (bmdcNumber) {
+        const existingDoctor = await DoctorModel.findOne({
+          bmdcNumber,
+          userId: { $ne: existingUser._id },
+        });
+        if (existingDoctor) {
+          const docUser = await UserModel.findById(existingDoctor.userId);
+          if (docUser && (docUser.status === ACCOUNT_STATUS.ACTIVE || docUser.isEmailVerified)) {
+            throw new ConflictError("A doctor with this BMDC Number already exists.");
+          }
+          if (docUser && !docUser.isEmailVerified && docUser.status === ACCOUNT_STATUS.PENDING) {
+            await OtpModel.deleteMany({ userId: docUser._id });
+            await DoctorModel.deleteOne({ _id: existingDoctor._id });
+            await UserModel.deleteOne({ _id: docUser._id });
+          } else if (!docUser) {
+            await DoctorModel.deleteOne({ _id: existingDoctor._id });
+          }
+        }
+      }
+
+      if (fullName) existingUser.fullName = fullName;
+      if (payload.profileImg) existingUser.profileImg = payload.profileImg;
+      if (password) existingUser.password = password; // pre-save hook will hash password
+
+      const otp = generateOTP();
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+      //transaction & rollback
+      const session = await mongoose.startSession();
+
+      try {
+        session.startTransaction();
+
+        // Save updated user data
+        await existingUser.save({ session });
+
+        // Update doctor profile
+        await DoctorModel.updateOne(
+          { userId: existingUser._id },
+          {
+            title,
+            specialization,
+            bmdcNumber,
+          },
+          { session },
+        );
+
+        //update otp
+        await OtpModel.updateOne(
+          { email, userId: existingUser._id },
+          { otp, expiresAt, type: OTP_TYPE.REGISTER, isVerified: false },
+          { upsert: true, runValidators: true, session },
+        );
+
+        //transaction success
+        await session.commitTransaction();
+
+        // Resend verification email
+        await sendVerificationEmail(email, otp.toString());
+
+        return {
+          message: "Verification email resent. Please check your inbox.",
+          data: {
+            userId: existingUser._id,
+            fullName: existingUser.fullName,
+            email: existingUser.email,
+            phone: existingUser.phone,
+            createdAt: existingUser.createdAt,
+          },
+        };
+      } catch (err) {
+        await session.abortTransaction();
+        throw err;
+      } finally {
+        await session.endSession();
+      }
     }
 
-    // 3. Check if doctor with this BMDC number already exists
-    const existingDoctor = await DoctorModel.findOne({ bmdcNumber });
-    if (existingDoctor) {
-      throw new ConflictError(
-        "A doctor with this BMDC Number already exists.",
-      );
+    // 3. Check if user with this phone already exists
+    if (phone) {
+      const existingPhone = await UserModel.findOne({ phone });
+      if (existingPhone) {
+        if (existingPhone.status === ACCOUNT_STATUS.BLOCKED) {
+          throw new ForbiddenError("Your account is blocked.");
+        }
+        if (existingPhone.status === ACCOUNT_STATUS.ACTIVE || existingPhone.isEmailVerified) {
+          throw new ConflictError("An account with this phone number already exists.");
+        }
+
+        // existingPhone is unverified (status: PENDING, isEmailVerified: false)
+        await OtpModel.deleteMany({ userId: existingPhone._id });
+        await DoctorModel.deleteOne({ userId: existingPhone._id });
+        await UserModel.deleteOne({ _id: existingPhone._id });
+      }
     }
 
-    // 4. Transaction to create User and Doctor profile
+    // 4. Check if doctor with this BMDC number already exists
+    if (bmdcNumber) {
+      const existingDoctor = await DoctorModel.findOne({ bmdcNumber });
+      if (existingDoctor) {
+        const docUser = await UserModel.findById(existingDoctor.userId);
+        if (docUser && (docUser.status === ACCOUNT_STATUS.ACTIVE || docUser.isEmailVerified)) {
+          throw new ConflictError("A doctor with this BMDC Number already exists.");
+        }
+        if (docUser && !docUser.isEmailVerified && docUser.status === ACCOUNT_STATUS.PENDING) {
+          await OtpModel.deleteMany({ userId: docUser._id });
+          await DoctorModel.deleteOne({ _id: existingDoctor._id });
+          await UserModel.deleteOne({ _id: docUser._id });
+        } else if (!docUser) {
+          await DoctorModel.deleteOne({ _id: existingDoctor._id });
+        }
+      }
+    }
+
+    // 5. Generate 6-digit OTP
+    const otp = generateOTP();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+    // 6. Transaction to create User, Doctor profile, and OTP
     const session = await mongoose.startSession();
     try {
       session.startTransaction();
 
-      // Create User account (status: pending, role: doctor)
+      // Create User account (status: pending, role: doctor, isEmailVerified: false)
       const newUser = await UserModel.create(
         [
           {
@@ -221,8 +437,7 @@ const registerDoctor = async (req: any) => {
             profileImg,
             password,
             role: USER_ROLES.DOCTOR,
-            isEmailVerified: true,
-            emailVerifiedAt: new Date(),
+            isEmailVerified: false,
             status: ACCOUNT_STATUS.PENDING,
           },
         ],
@@ -241,10 +456,7 @@ const registerDoctor = async (req: any) => {
             userId: createdUser._id,
             title,
             specialization,
-            city,
             bmdcNumber,
-            ...(hospital && { hospital }),
-            ...(country && { country }),
             approvalStatus: DOCTOR_APPROVAL_STATUS.PENDING,
             status: DOCTOR_STATUS.DRAFT,
             registrationSource: DOCTOR_REGISTRATION_SOURCE.SELF,
@@ -258,24 +470,44 @@ const registerDoctor = async (req: any) => {
         throw new BadRequestError("Failed to create doctor profile");
       }
 
+      // Create OTP in OtpModel
+      await OtpModel.create(
+        [
+          {
+            userId: createdUser._id,
+            email,
+            otp,
+            type: OTP_TYPE.REGISTER,
+            expiresAt,
+            isVerified: false,
+          },
+        ],
+        { session },
+      );
+
       await session.commitTransaction();
 
+      // Send verification email with OTP
+      await sendVerificationEmail(email, otp.toString());
+
       return {
-        _id: createdDoctor._id,
-        userId: createdUser._id,
-        fullName: createdUser.fullName,
-        email: createdUser.email,
-        phone: createdUser.phone,
-        profileImg: createdUser.profileImg,
-        role: createdUser.role,
-        title: createdDoctor.title,
-        specialization: createdDoctor.specialization,
-        city: createdDoctor.city,
-        bmdcNumber: createdDoctor.bmdcNumber,
-        approvalStatus: createdDoctor.approvalStatus,
-        status: createdDoctor.status,
-        registrationSource: createdDoctor.registrationSource,
-        createdAt: createdDoctor.createdAt,
+        message: "Please check your email to verify.",
+        data: {
+          _id: createdDoctor._id,
+          userId: createdUser._id,
+          fullName: createdUser.fullName,
+          email: createdUser.email,
+          phone: createdUser.phone,
+          profileImg: createdUser.profileImg,
+          role: createdUser.role,
+          title: createdDoctor.title,
+          specialization: createdDoctor.specialization,
+          bmdcNumber: createdDoctor.bmdcNumber,
+          approvalStatus: createdDoctor.approvalStatus,
+          status: createdDoctor.status,
+          registrationSource: createdDoctor.registrationSource,
+          createdAt: createdDoctor.createdAt,
+        },
       };
     } catch (err) {
       await session.abortTransaction();
@@ -339,7 +571,7 @@ const verifyAccount = async (payload: IVerifyOTp) => {
 
     //delete otp
     await OtpModel.deleteOne(
-      { userId: user._id, email: user.email },
+      { userId: user._id, email: user.email, type: OTP_TYPE.REGISTER },
       { session },
     );
 
@@ -400,7 +632,7 @@ const resendVerificationEmail = async (email: string) => {
   await sendVerificationEmail(email, otp.toString());
 
   return {
-    resendAvailableAt: new Date(Date.now() + 2 * 60 * 1000), //resend after two minutes
+    resendAvailableAt: new Date(Date.now() + 1 * 60 * 1000), //resend after one minute
   };
 };
 
@@ -951,7 +1183,7 @@ const forgotPasswordSendOtp = async (email: string) => {
   );
 
   //send otp to the email address
-  sendForgotEmail(email, String(otp));
+  await sendForgotEmail(email, String(otp));
 
   return {
     resendAvailableAt: new Date(Date.now() + 60 * 1000), //resend after one minute

@@ -6,6 +6,7 @@ export type THospitalStatus =
 
 export interface IHospital extends Document {
   name: string;
+  slug: string;
   image: string;
   address: string;
   contactNumber?: string;

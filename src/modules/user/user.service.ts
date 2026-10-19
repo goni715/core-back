@@ -6,6 +6,7 @@ import UserModel from "./user.model";
 import uploadToCloudinary from "../../utils/uploadToCloudinary";
 import deleteFromCloudinary from "../../utils/deleteFromCloudinary";
 import makePublicID from "../../utils/makePublicID";
+import ConflictError from "../../errors/ConflictError";
 
 
 
@@ -113,6 +114,19 @@ const updateProfile = async (userId: string, req: any) => {
             //upload image
             image = await uploadToCloudinary(req?.file?.path as string, "user");
             payload.profileImg = image.img_url;
+        }
+
+        // check if phone is already taken by another user
+        if (payload.phone) {
+            const existingPhone = await UserModel.findOne({
+                phone: payload.phone,
+                _id: { $ne: userId },
+            });
+            if (existingPhone) {
+                throw new ConflictError(
+                    "An account with this phone number already exists.",
+                );
+            }
         }
 
         //update profile

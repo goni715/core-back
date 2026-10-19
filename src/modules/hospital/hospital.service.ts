@@ -9,11 +9,21 @@ import uploadToCloudinary from "../../utils/uploadToCloudinary";
 import { HOSPITAL_SEARCHABLE_FIELDS } from "./hospital.constant";
 import { THospitalQuery } from "./hospital.interface";
 import HospitalModel from "./hospital.model";
+import convertToSlug from "../../utils/convertToSlug";
 
 /*=========== create hospital ============*/
 const createHospital = async (req: Request) => {
   const payload = req.body;
   let image;
+
+  const slug = convertToSlug(payload.name);
+  payload.slug = slug;
+
+  //check name
+  const existingHospital = await HospitalModel.findOne({ slug });
+  if (existingHospital) {
+    throw new BadRequestError("Hospital name already exists");
+  }
 
   try {
     // If image file uploaded via multer

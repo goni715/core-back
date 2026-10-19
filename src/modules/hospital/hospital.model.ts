@@ -9,6 +9,12 @@ const hospitalSchema = new Schema<IHospital>(
       required: [true, "Hospital name is required"],
       trim: true,
     },
+    slug: {
+      type: String,
+      required: [true, "Hospital slug is required"],
+      trim: true,
+      unique: true,
+    },
     image: {
       type: String,
       required: [true, "Hospital image is required"],

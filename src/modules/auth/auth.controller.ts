@@ -20,9 +20,8 @@ const registerDoctor = asyncHandler(async (req, res) => {
   const result = await AuthService.registerDoctor(req);
   res.status(201).json({
     success: true,
-    message:
-      "Doctor registration submitted successfully. It is pending admin approval.",
-    data: result,
+    message: result.message,
+    data: result.data || null,
   });
 });
 

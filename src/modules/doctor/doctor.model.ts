@@ -5,6 +5,7 @@ import {
   DOCTOR_APPROVAL_STATUS_VALUES,
   DOCTOR_REGISTRATION_SOURCE,
   DOCTOR_REGISTRATION_SOURCE_VALUES,
+  DOCTOR_SPECIALIZATION_VALUES,
   DOCTOR_STATUS,
   DOCTOR_STATUS_VALUES,
   DOCTOR_TITLE,
@@ -31,6 +32,10 @@ const doctorSchema = new Schema<IDoctor>(
     },
     specialization: {
       type: String,
+      enum: {
+        values: DOCTOR_SPECIALIZATION_VALUES,
+        message: "{VALUE} is not a valid specialization",
+      },
       required: [true, "Specialization is required"],
       trim: true,
     },
@@ -39,14 +44,23 @@ const doctorSchema = new Schema<IDoctor>(
       trim: true,
       default: "",
     },
-    country: {
+    designation: {
       type: String,
       trim: true,
-      default: "Bangladesh",
+      default: "",
     },
-    city: {
+    education: {
       type: String,
-      required: [true, "City is required"],
+      trim: true,
+      default: "",
+    },
+    consultationFee: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    address: {
+      type: String,
       trim: true,
     },
     bmdcNumber: {
@@ -59,36 +73,15 @@ const doctorSchema = new Schema<IDoctor>(
       type: Schema.Types.Mixed,
       default: 0,
     },
-    fee: {
-      type: Number,
-      default: 0,
-      min: 0,
-    },
-    languages: {
-      type: [String],
-      default: [],
-    },
     about: {
       type: String,
       trim: true,
       default: "",
     },
     qualifications: {
-      type: [String],
-      default: [],
-    },
-    consultationTypes: {
-      type: [String],
-      default: [],
-    },
-    availabilityLabel: {
       type: String,
       trim: true,
       default: "",
-    },
-    availableDays: {
-      type: [String],
-      default: [],
     },
     rating: {
       type: Number,
@@ -100,6 +93,10 @@ const doctorSchema = new Schema<IDoctor>(
       type: Number,
       default: 0,
       min: 0,
+    },
+    isOnline: {
+      type: Boolean,
+      default: false,
     },
     approvalStatus: {
       type: String,
@@ -127,7 +124,7 @@ const doctorSchema = new Schema<IDoctor>(
     rejectionReason: {
       type: String,
       trim: true,
-      default: "",
+      default: null,
     },
     status: {
       type: String,
