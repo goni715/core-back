@@ -85,3 +85,13 @@ export const getHospitalsValidationSchema = z.object({
     status: enumSchema('status', HOSPITAL_STATUS_VALUES).optional(),
   })
 });
+
+export const getPublishedHospitalsValidationSchema = z.object({
+  query: z.object({
+    searchTerm: z.string().optional(),
+    page: z.string().optional(),
+    limit: z.string().optional(),
+    sortBy: z.string().optional(),
+    sortOrder: enumSchema('sortOrder', ['asc', 'desc']).optional(),
+  })
+});
