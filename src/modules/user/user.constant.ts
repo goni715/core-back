@@ -16,12 +16,3 @@ export const USER_ROLES = {
 } as const;
 
 export const USER_ROLE_VALUES = Object.values(USER_ROLES);
-
-export const USER_VALID_FIELDS: string[] = [
-  "searchTerm",
-  "page",
-  "limit",
-  "sortBy",
-  "sortOrder",
-  "status",
-];

@@ -29,7 +29,12 @@ app.use(
 
 app.use(cookieParser());
 
-app.use(morgan("dev"));
+if (config.node_env === "production") {
+  app.use(morgan("combined"));
+} else {
+  app.use(morgan("dev"));
+}
+
 
 app.get("/", (req: Request, res: Response) => {
   res.send(`Coffee Membership Backend server is running !`);

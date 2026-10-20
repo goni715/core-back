@@ -28,10 +28,4 @@ export type THospitalQuery = {
   sortBy?: string;
   sortOrder?: "asc" | "desc";
   status?: THospitalStatus;
-  address?: string;
-  contactNumber?: string;
-  email?: string;
-  website?: string;
-  specialities?: string;
-  languages?: string;
 };

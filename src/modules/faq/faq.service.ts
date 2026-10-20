@@ -5,6 +5,7 @@ import convertToSlug from "../../utils/convertToSlug";
 import ConflictError from "../../errors/ConflictError";
 import { makeFilterQuery, makeSearchQuery } from "../../helpers/QueryBuilder";
 import { FAQ_SEARCHABLE_FIELDS } from "./faq.constant";
+import { PipelineStage } from "mongoose";
 
 /*========== create FAQ ==========*/
 const createFaq = async (
@@ -55,13 +56,17 @@ const getFaqs = async (query: TFaqQuery) => {
         filterQuery = makeFilterQuery(filters);
     }
 
+    //common pipeline
+    const commonPipeline : PipelineStage = {
+        $match: {
+            ...searchQuery,
+            ...filterQuery
+        }
+    }
+
+    //
     const result = await FaqModel.aggregate([
-        {
-            $match: {
-                ...searchQuery,
-                ...filterQuery
-            }
-        },
+        commonPipeline,
         {
             $project: {
                 slug: 0,
@@ -76,12 +81,7 @@ const getFaqs = async (query: TFaqQuery) => {
 
     // total count
     const totalCountResult = await FaqModel.aggregate([
-        {
-            $match: {
-                ...searchQuery,
-                ...filterQuery
-            }
-        },
+        commonPipeline,
         { $count: "totalCount" }
     ])
 

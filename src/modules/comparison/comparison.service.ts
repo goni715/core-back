@@ -12,6 +12,7 @@ import {
   TComparisonQuery,
 } from "./comparison.interface";
 import ComparisonModel from "./comparison.model";
+import { makeFilterQuery } from "../../helpers/QueryBuilder";
 
 // Helper to generate clean, URL-friendly slug
 const generateSlug = (
@@ -77,11 +78,6 @@ const getComparisons = async (query: TComparisonQuery) => {
     limit = 10,
     sortOrder = "desc",
     sortBy = "createdAt",
-    status,
-    treatmentName,
-    category,
-    country,
-    isPopular,
     ...filters
   } = query;
 
@@ -101,43 +97,12 @@ const getComparisons = async (query: TComparisonQuery) => {
     };
   }
 
-  // 4. Filter query
-  const filterQuery: Record<string, unknown> = {};
-
-  if (status) {
-    filterQuery.status = status;
+  // 4. setup filters
+  let filterQuery: Record<string, unknown> = {};
+  if (filters) {
+    filterQuery = makeFilterQuery(filters);
   }
 
-  if (category) {
-    filterQuery.category = { $regex: category, $options: "i" };
-  }
-
-  if (treatmentName) {
-    filterQuery.treatmentName = { $regex: treatmentName, $options: "i" };
-  }
-
-  if (isPopular !== undefined) {
-    filterQuery.isPopular =
-      typeof isPopular === "string" ? isPopular === "true" : Boolean(isPopular);
-  }
-
-  // If a country filter is given, search in either firstCountry or secondCountry
-  if (country) {
-    filterQuery.$or = [
-      { "firstCountry.country": { $regex: country, $options: "i" } },
-      { "firstCountry.countryCode": { $regex: country, $options: "i" } },
-      { "secondCountry.country": { $regex: country, $options: "i" } },
-      { "secondCountry.countryCode": { $regex: country, $options: "i" } },
-    ];
-  }
-
-  // Append any extra filters
-  const extraFilters = filters as Record<string, unknown>;
-  Object.keys(extraFilters).forEach((key) => {
-    if (extraFilters[key] !== undefined && extraFilters[key] !== "") {
-      filterQuery[key] = extraFilters[key];
-    }
-  });
 
   const pipeline: PipelineStage[] = [
     {

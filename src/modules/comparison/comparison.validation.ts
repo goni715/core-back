@@ -128,3 +128,15 @@ export const compareSearchValidationSchema = z.object({
     secondCountry: z.string().optional(),
   }),
 });
+
+
+export const getComparisonsValidationSchema = z.object({
+  query: z.object({
+    searchTerm: z.string().optional(),
+    page: z.string().optional(),
+    limit: z.string().optional(),
+    sortOrder: z.string().optional(),
+    sortBy: z.string().optional(),
+    status: enumSchema('status', COMPARISON_STATUS_VALUES).optional(),
+  })
+});

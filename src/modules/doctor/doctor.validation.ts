@@ -12,6 +12,7 @@ import { booleanSchema } from "../../schemas/boolean.schema";
 import {
   DOCTOR_APPROVAL_STATUS,
   DOCTOR_APPROVAL_STATUS_VALUES,
+  DOCTOR_REGISTRATION_SOURCE_VALUES,
   DOCTOR_SPECIALIZATION_VALUES,
   DOCTOR_STATUS,
   DOCTOR_STATUS_VALUES,
@@ -19,6 +20,8 @@ import {
   DOCTOR_TITLE_VALUES,
 } from "./doctor.constant";
 import { parseArrayField } from "../hospital/hospital.validation";
+import { booleanQuerySchema } from "../../schemas/global.schema";
+import { ACCOUNT_STATUS_VALUES } from "../user/user.constant";
 
 export const isOnlineZodSchema = z
   .preprocess((val) => {
@@ -167,4 +170,32 @@ export const deleteDoctorValidationSchema = z.object({
   params: z.object({
     doctorId: doctorIdZodSchema,
   }),
+});
+
+export const getPublishedDoctorsValidationSchema = z.object({
+  query: z.object({
+    searchTerm: z.string().optional(),
+    page: z.string().optional(),
+    limit: z.string().optional(),
+    sortOrder: z.string().optional(),
+    sortBy: z.string().optional(),
+    isOnline: booleanQuerySchema("isOnline")
+      .optional()
+  })
+});
+
+export const getDoctorsValidationSchema = z.object({
+  query: z.object({
+    searchTerm: z.string().optional(),
+    page: z.string().optional(),
+    limit: z.string().optional(),
+    sortOrder: z.string().optional(),
+    sortBy: z.string().optional(),
+    isOnline: booleanQuerySchema("isOnline")
+      .optional(),
+    status: enumSchema('status', DOCTOR_STATUS_VALUES).optional(),
+    approvalStatus: enumSchema('approvalStatus', DOCTOR_APPROVAL_STATUS_VALUES).optional(),
+    registrationSource: enumSchema('registrationSource', DOCTOR_REGISTRATION_SOURCE_VALUES).optional(),
+    userStatus: enumSchema('userStatus', ACCOUNT_STATUS_VALUES).optional(),
+  })
 });

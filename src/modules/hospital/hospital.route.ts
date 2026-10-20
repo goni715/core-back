@@ -7,6 +7,7 @@ import HospitalController from "./hospital.controller";
 import {
   createHospitalValidationSchema,
   deleteHospitalValidationSchema,
+  getHospitalsValidationSchema,
   updateHospitalValidationSchema,
 } from "./hospital.validation";
 
@@ -23,6 +24,7 @@ router.post(
 router.get(
   "/get-hospitals",
   authMiddleware(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN),
+  validationMiddleware(getHospitalsValidationSchema),
   HospitalController.getHospitals,
 );
 

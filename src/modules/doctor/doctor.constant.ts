@@ -72,26 +72,6 @@ export const DOCTOR_REGISTRATION_SOURCE_VALUES = Object.values(
   DOCTOR_REGISTRATION_SOURCE,
 );
 
-export const DOCTOR_VALID_FIELDS: string[] = [
-  "searchTerm",
-  "page",
-  "limit",
-  "sortBy",
-  "sortOrder",
-  "status",
-  "approvalStatus",
-  "registrationSource",
-  "userStatus",
-  "specialization",
-  "hospital",
-  "designation",
-  "education",
-  "consultationFee",
-  "address",
-  "bmdcNumber",
-  "isOnline",
-];
-
 export const DOCTOR_SEARCHABLE_FIELDS = [
   "fullName",
   "email",

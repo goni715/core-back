@@ -1,6 +1,4 @@
 import asyncHandler from "../../utils/asyncHandler";
-import pickValidFields from "../../utils/pickValidFields";
-import { HOSPITAL_VALID_FIELDS } from "./hospital.constant";
 import HospitalService from "./hospital.service";
 
 const createHospital = asyncHandler(async (req, res) => {
@@ -13,7 +11,7 @@ const createHospital = asyncHandler(async (req, res) => {
 });
 
 const getHospitals = asyncHandler(async (req, res) => {
-  const validatedQuery = pickValidFields(req.query, HOSPITAL_VALID_FIELDS);
+  const validatedQuery = (req as any).validatedQuery;
   const result = await HospitalService.getHospitals(validatedQuery);
   res.status(200).json({
     success: true,

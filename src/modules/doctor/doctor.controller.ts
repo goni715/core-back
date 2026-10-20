@@ -1,7 +1,5 @@
 import asyncHandler from "../../utils/asyncHandler";
 import DoctorService from "./doctor.service";
-import pickValidFields from "../../utils/pickValidFields";
-import { DOCTOR_VALID_FIELDS } from "./doctor.constant";
 
 const approveOrRejectDoctor = asyncHandler(async (req, res) => {
   const { doctorId } = req.params;
@@ -47,7 +45,7 @@ const createDoctor = asyncHandler(async (req, res) => {
 });
 
 const getDoctors = asyncHandler(async (req, res) => {
-  const validatedQuery = pickValidFields(req.query, DOCTOR_VALID_FIELDS);
+  const validatedQuery = (req as any).validatedQuery;
   const result = await DoctorService.getDoctors(validatedQuery);
   res.status(200).json({
     success: true,
@@ -58,7 +56,7 @@ const getDoctors = asyncHandler(async (req, res) => {
 });
 
 const getPublishedDoctors = asyncHandler(async (req, res) => {
-  const validatedQuery = pickValidFields(req.query, DOCTOR_VALID_FIELDS);
+  const validatedQuery = (req as any).validatedQuery;
   const result = await DoctorService.getPublishedDoctors(validatedQuery);
   res.status(200).json({
     success: true,

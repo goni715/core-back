@@ -1,11 +1,9 @@
 import asyncHandler from "../../utils/asyncHandler";
 import UserService from "./user.service";
-import pickValidFields from "../../utils/pickValidFields";
-import { USER_VALID_FIELDS } from "./user.constant";
 
 
 const getPatients = asyncHandler(async (req, res) => {
-    const validatedQuery = pickValidFields(req.query, USER_VALID_FIELDS);
+    const validatedQuery = (req as any).validatedQuery;
     const result = await UserService.getPatients(validatedQuery);
     res.status(200).json({
         success: true,

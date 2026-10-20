@@ -7,14 +7,21 @@ import {
   compareSearchValidationSchema,
   createComparisonValidationSchema,
   deleteComparisonValidationSchema,
+  getComparisonsValidationSchema,
   updateComparisonValidationSchema,
 } from "./comparison.validation";
 
 const router = express.Router();
 
-/* Public routes for visitors & frontend */
-router.get("/get-comparisons", ComparisonController.getComparisons);
+router.get(
+  "/get-comparisons",
+  authMiddleware(USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
+  validationMiddleware(getComparisonsValidationSchema),
+  ComparisonController.getComparisons
+);
+
 router.get("/popular-comparisons", ComparisonController.getPopularComparisons);
+
 router.get(
   "/compare",
   validationMiddleware(compareSearchValidationSchema),

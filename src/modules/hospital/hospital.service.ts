@@ -55,7 +55,6 @@ const getHospitals = async (query: THospitalQuery) => {
     limit = 10,
     sortOrder = "desc",
     sortBy = "createdAt",
-    status,
     ...filters
   } = query;
 
@@ -77,10 +76,7 @@ const getHospitals = async (query: THospitalQuery) => {
     filterQuery = makeFilterQuery(filters);
   }
 
-  if (status) {
-    filterQuery.status = status;
-  }
-
+  //common pipeline
   const pipeline: PipelineStage[] = [
     {
       $match: {

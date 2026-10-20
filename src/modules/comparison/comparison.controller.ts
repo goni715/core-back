@@ -1,6 +1,4 @@
 import asyncHandler from "../../utils/asyncHandler";
-import pickValidFields from "../../utils/pickValidFields";
-import { COMPARISON_VALID_FIELDS } from "./comparison.constant";
 import ComparisonService from "./comparison.service";
 
 /*=========== Create Comparison ============*/
@@ -15,7 +13,7 @@ const createComparison = asyncHandler(async (req, res) => {
 
 /*=========== Get All Comparisons ============*/
 const getComparisons = asyncHandler(async (req, res) => {
-  const validatedQuery = pickValidFields(req.query, COMPARISON_VALID_FIELDS);
+  const validatedQuery = (req as any).validatedQuery;
   const result = await ComparisonService.getComparisons(validatedQuery);
   res.status(200).json({
     success: true,

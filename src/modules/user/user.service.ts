@@ -1,5 +1,5 @@
 import { makeFilterQuery, makeSearchQuery } from "../../helpers/QueryBuilder";
-import { IUser, TUserQuery } from "./user.interface";
+import { IUser, TPatientQuery } from "./user.interface";
 import { USER_ROLES, USER_SEARCHABLE_FIELDS } from "./user.constant";
 import { PipelineStage } from "mongoose";
 import UserModel from "./user.model";
@@ -11,7 +11,7 @@ import ConflictError from "../../errors/ConflictError";
 
 
 /*============== get patients ================== */
-const getPatients = async (query: TUserQuery) => {
+const getPatients = async (query: TPatientQuery) => {
     const {
         searchTerm,
         page = 1,

@@ -26,7 +26,7 @@ export interface IUser extends Document {
 
 
 
-export type TUserQuery = {
+export type TPatientQuery = {
   searchTerm?: string;
   page?: string;
   limit?: string;

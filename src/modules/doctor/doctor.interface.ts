@@ -91,11 +91,14 @@ export type TDoctorQuery = {
   approvalStatus?: TDoctorApprovalStatus;
   registrationSource?: TDoctorRegistrationSource;
   userStatus?: TAccountStatus;
-  specialization?: TDoctorSpecialization | string;
-  hospital?: string;
-  designation?: string;
-  education?: string;
-  address?: string;
-  bmdcNumber?: string;
-  isOnline?: boolean | string;
+  isOnline?: boolean;
+};
+
+export type TPublishedDoctorQuery = {
+  searchTerm?: string;
+  page?: string;
+  limit?: string;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
+  isOnline?: boolean;
 };

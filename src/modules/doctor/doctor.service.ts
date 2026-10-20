@@ -19,6 +19,7 @@ import {
 import {
   TCreateDoctorPayload,
   TDoctorQuery,
+  TPublishedDoctorQuery,
   TUpdateDoctorPayload,
 } from "./doctor.interface";
 import DoctorModel from "./doctor.model";
@@ -278,11 +279,6 @@ const getDoctors = async (query: TDoctorQuery) => {
     limit = 10,
     sortOrder = "desc",
     sortBy = "createdAt",
-    status,
-    approvalStatus,
-    registrationSource,
-    userStatus,
-    isOnline,
     ...filters
   } = query;
 
@@ -304,28 +300,7 @@ const getDoctors = async (query: TDoctorQuery) => {
     filterQuery = makeFilterQuery(filters);
   }
 
-  if (status) {
-    filterQuery["status"] = status;
-  }
-
-  if (approvalStatus) {
-    filterQuery["approvalStatus"] = approvalStatus;
-  }
-
-  if (registrationSource) {
-    filterQuery["registrationSource"] = registrationSource;
-  }
-
-  if (userStatus) {
-    filterQuery["user.status"] = userStatus;
-  }
-
-  if (isOnline !== undefined) {
-    filterQuery["isOnline"] =
-      typeof isOnline === "boolean" ? isOnline : isOnline === "true";
-  }
-
-  // Aggregate pipeline joining Doctor with User
+  // common pipeline
   const pipeline: PipelineStage[] = [
     {
       $lookup: {
@@ -379,7 +354,6 @@ const getDoctors = async (query: TDoctorQuery) => {
         address: "$address",
         bmdcNumber: "$bmdcNumber",
         experience: "$experience",
-        about: "$about",
         qualifications: "$qualifications",
         rating: "$rating",
         totalReviews: "$totalReviews",
@@ -423,13 +397,121 @@ const getDoctors = async (query: TDoctorQuery) => {
 };
 
 /*============== get published doctors (Public / Patient view) ================== */
-const getPublishedDoctors = async (query: TDoctorQuery) => {
-  return await getDoctors({
-    ...query,
-    approvalStatus: DOCTOR_APPROVAL_STATUS.APPROVED,
-    status: DOCTOR_STATUS.PUBLISHED,
-    userStatus: ACCOUNT_STATUS.ACTIVE,
-  });
+const getPublishedDoctors = async (query: TPublishedDoctorQuery) => {
+  const {
+    searchTerm,
+    page = 1,
+    limit = 10,
+    sortOrder = "desc",
+    sortBy = "createdAt",
+    ...filters
+  } = query;
+
+  // 1. set up pagination
+  const skip = (Number(page) - 1) * Number(limit);
+
+  // 2. setup sorting
+  const sortDirection = sortOrder === "asc" ? 1 : -1;
+
+  // 3. setup searching
+  let searchQuery: Record<string, unknown> = {};
+  if (searchTerm) {
+    searchQuery = makeSearchQuery(searchTerm, DOCTOR_SEARCHABLE_FIELDS);
+  }
+
+  // 4. setup filters
+  let filterQuery: Record<string, unknown> = {};
+  if (filters) {
+    filterQuery = makeFilterQuery(filters);
+  }
+
+
+  // Aggregate pipeline joining Doctor with User
+  const pipeline: PipelineStage[] = [
+    {
+      $lookup: {
+        from: "users",
+        localField: "userId",
+        foreignField: "_id",
+        as: "user",
+      },
+    },
+    {
+      $unwind: {
+        path: "$user",
+        preserveNullAndEmptyArrays: false,
+      },
+    },
+    {
+      $addFields: {
+        fullName: "$user.fullName",
+        email: "$user.email",
+        phone: "$user.phone",
+        profileImg: "$user.profileImg",
+        userStatus: "$user.status",
+      },
+    },
+    {
+      $match: {
+        ...searchQuery,
+        ...filterQuery,
+        userStatus: ACCOUNT_STATUS.ACTIVE,
+        status: DOCTOR_STATUS.PUBLISHED,
+        approvalStatus: DOCTOR_APPROVAL_STATUS.APPROVED,
+      },
+    },
+  ];
+
+  // Fetch doctors list with projection
+  const doctors = await DoctorModel.aggregate([
+    ...pipeline,
+    {
+      $project: {
+        _id: 1,
+        userId: "$userId",
+        title: "$title",
+        fullName: "$fullName",
+        email: "$email",
+        phone: "$phone",
+        profileImg: "$profileImg",
+        specialization: "$specialization",
+        designation: "$designation",
+        education: "$education",
+        consultationFee: "$consultationFee",
+        address: "$address",
+        bmdcNumber: "$bmdcNumber",
+        qualifications: "$qualifications",
+        rating: "$rating",
+        totalReviews: "$totalReviews",
+        isOnline: "$isOnline",
+        createdAt: "$createdAt",
+        updatedAt: "$updatedAt",
+      },
+    },
+    { $sort: { [sortBy]: sortDirection } },
+    { $skip: skip },
+    { $limit: Number(limit) },
+  ]);
+
+  // Total count
+  const countPipeline: PipelineStage[] = [
+    ...pipeline,
+    { $count: "totalCount" },
+  ];
+  const totalCountResult = await DoctorModel.aggregate(countPipeline);
+
+  const totalCount = totalCountResult[0]?.totalCount || 0;
+  const totalPages = Math.ceil(totalCount / Number(limit));
+
+  return {
+    meta: {
+      page: Number(page),
+      limit: Number(limit),
+      totalPages,
+      total: totalCount,
+    },
+    data: doctors,
+  };
 };
 
 /*============== get single doctor by id ================== */

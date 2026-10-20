@@ -73,3 +73,15 @@ export const deleteHospitalValidationSchema = z.object({
     hospitalId: hospitalIdZodSchema,
   }),
 });
+
+
+export const getHospitalsValidationSchema = z.object({
+  query: z.object({
+    searchTerm: z.string().optional(),
+    page: z.string().optional(),
+    limit: z.string().optional(),
+    sortBy: z.string().optional(),
+    sortOrder: enumSchema('sortOrder', ['asc', 'desc']).optional(),
+    status: enumSchema('status', HOSPITAL_STATUS_VALUES).optional(),
+  })
+});

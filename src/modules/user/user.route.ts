@@ -3,7 +3,7 @@ import UserController from "./user.controller";
 import authMiddleware from "../../middlewares/authMiddleware";
 import { USER_ROLES } from "./user.constant";
 import validationMiddleware from "../../middlewares/validationMiddleware";
-import { updateProfileValidationSchema } from "./user.validation";
+import { getPatientsValidationSchema, updateProfileValidationSchema } from "./user.validation";
 import upload from "../../helpers/upload";
 
 const router = express.Router();
@@ -11,6 +11,7 @@ const router = express.Router();
 router.get(
     "/patients",
     authMiddleware(USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
+    validationMiddleware(getPatientsValidationSchema),
     UserController.getPatients
 );
 

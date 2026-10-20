@@ -36,13 +36,7 @@ export type TComparisonQuery = {
   sortBy?: string;
   sortOrder?: "asc" | "desc";
   status?: TComparisonStatus;
-  treatmentName?: string;
-  category?: string;
-  country?: string;
-  firstCountry?: string;
-  secondCountry?: string;
-  isPopular?: string | boolean;
-};
+}
 
 export type TCompareQuery = {
   treatmentName?: string;
