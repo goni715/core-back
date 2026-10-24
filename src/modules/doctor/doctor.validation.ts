@@ -172,6 +172,12 @@ export const deleteDoctorValidationSchema = z.object({
   }),
 });
 
+export const getSingleDoctorValidationSchema = z.object({
+  params: z.object({
+    doctorId: doctorIdZodSchema,
+  }),
+});
+
 export const getPublishedDoctorsValidationSchema = z.object({
   query: z.object({
     searchTerm: z.string().optional(),

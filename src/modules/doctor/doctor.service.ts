@@ -468,7 +468,6 @@ const getPublishedDoctors = async (query: TPublishedDoctorQuery) => {
     {
       $project: {
         _id: 1,
-        userId: "$userId",
         title: "$title",
         fullName: "$fullName",
         email: "$email",
@@ -512,6 +511,127 @@ const getPublishedDoctors = async (query: TPublishedDoctorQuery) => {
     },
     data: doctors,
   };
+};
+
+/*============== get single published doctor ================== */
+const getSinglePublishedDoctor = async (doctorId: string) => {
+  const result = await DoctorModel.aggregate([
+    {
+      $match: {
+        _id: new Types.ObjectId(doctorId),
+        approvalStatus: DOCTOR_APPROVAL_STATUS.APPROVED,
+        status: DOCTOR_STATUS.PUBLISHED,
+      },
+    },
+    {
+      $lookup: {
+        from: "users",
+        localField: "userId",
+        foreignField: "_id",
+        as: "user",
+      },
+    },
+    {
+      $unwind: "$user"
+    },
+    {
+      $match: {
+        "user.status": ACCOUNT_STATUS.ACTIVE,
+      },
+    },
+    {
+      $project: {
+        _id: 1,
+        title: "$title",
+        fullName: "$user.fullName",
+        email: "$user.email",
+        phone: "$user.phone",
+        profileImg: "$user.profileImg",
+        specialization: "$specialization",
+        hospital: "$hospital",
+        designation: "$designation",
+        education: "$education",
+        consultationFee: "$consultationFee",
+        address: "$address",
+        bmdcNumber: "$bmdcNumber",
+        experience: "$experience",
+        about: "$about",
+        qualifications: "$qualifications",
+        rating: "$rating",
+        totalReviews: "$totalReviews",
+        isOnline: "$isOnline",
+        createdAt: "$createdAt",
+      },
+    },
+  ]);
+
+  if(result.length == 0){
+    throw new NotFoundError("Doctor not found");
+  }
+
+  return result[0];
+};
+
+/*============== get single doctor ================== */
+const getSingleDoctor = async (doctorId: string) => {
+  const result = await DoctorModel.aggregate([
+    {
+      $match: {
+        _id: new Types.ObjectId(doctorId),
+      },
+    },
+    {
+      $lookup: {
+        from: "users",
+        localField: "userId",
+        foreignField: "_id",
+        as: "user",
+      },
+    },
+    {
+      $unwind: "$user"
+    },
+    {
+      $project: {
+        _id: 1,
+        userId: "$userId",
+        title: "$title",
+        fullName: "$user.fullName",
+        email: "$user.email",
+        phone: "$user.phone",
+        profileImg: "$user.profileImg",
+        specialization: "$specialization",
+        hospital: "$hospital",
+        designation: "$designation",
+        education: "$education",
+        consultationFee: "$consultationFee",
+        address: "$address",
+        bmdcNumber: "$bmdcNumber",
+        experience: "$experience",
+        about: "$about",
+        qualifications: "$qualifications",
+        rating: "$rating",
+        totalReviews: "$totalReviews",
+        isOnline: "$isOnline",
+        approvalStatus: "$approvalStatus",
+        approvedAt: "$approvedAt",
+        approvedBy: "$approvedBy",
+        rejectedAt: "$rejectedAt",
+        rejectedBy: "$rejectedBy",
+        rejectionReason: "$rejectionReason",
+        status: "$status",
+        registrationSource: "$registrationSource",
+        createdAt: "$createdAt",
+        updatedAt: "$updatedAt",
+      },
+    },
+  ]);
+
+  if(result.length == 0){
+    throw new NotFoundError("Doctor not found");
+  }
+
+  return result[0];
 };
 
 /*============== get single doctor by id ================== */
@@ -641,6 +761,8 @@ const DoctorService = {
   createDoctor,
   getDoctors,
   getPublishedDoctors,
+  getSinglePublishedDoctor,
+  getSingleDoctor,
   getDoctorById,
   updateDoctor,
   deleteDoctor,

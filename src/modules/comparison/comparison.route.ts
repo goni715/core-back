@@ -14,7 +14,7 @@ import {
 const router = express.Router();
 
 router.get(
-  "/get-comparisons",
+  "/comparisons",
   authMiddleware(USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
   validationMiddleware(getComparisonsValidationSchema),
   ComparisonController.getComparisons

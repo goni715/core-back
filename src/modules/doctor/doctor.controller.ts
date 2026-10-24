@@ -60,11 +60,33 @@ const getPublishedDoctors = asyncHandler(async (req, res) => {
   const result = await DoctorService.getPublishedDoctors(validatedQuery);
   res.status(200).json({
     success: true,
-    message: "Published doctors are retrieved successfully",
+    message: "Doctors are retrieved successfully",
     meta: result.meta,
     data: result.data,
   });
 });
+
+const getSinglePublishedDoctor = asyncHandler(async (req, res) => {
+  const { doctorId } = req.params;
+  const result = await DoctorService.getSinglePublishedDoctor(doctorId as string);
+  res.status(200).json({
+    success: true,
+    message: "Doctor is retrieved successfully",
+    data: result
+  });
+});
+
+
+const getSingleDoctor = asyncHandler(async (req, res) => {
+  const { doctorId } = req.params;
+  const result = await DoctorService.getSingleDoctor(doctorId as string);
+  res.status(200).json({
+    success: true,
+    message: "Doctor is retrieved successfully",
+    data: result
+  });
+});
+
 
 const getDoctorById = asyncHandler(async (req, res) => {
   const { doctorId } = req.params;
@@ -102,6 +124,8 @@ const DoctorController = {
   createDoctor,
   getDoctors,
   getPublishedDoctors,
+  getSinglePublishedDoctor,
+  getSingleDoctor,
   getDoctorById,
   updateDoctor,
   deleteDoctor,

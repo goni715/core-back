@@ -8,6 +8,7 @@ import ContentRoutes from "../modules/content/content.route";
 import SupportRoutes from "../modules/support/support.route";
 import DashboardRoutes from "../modules/dashboard/dashboard.route";
 import ComparisonRoutes from "../modules/comparison/comparison.route";
+import ScheduleRoutes from "../modules/schedule/schedule.route";
 
 const router = express.Router();
 
@@ -47,6 +48,10 @@ const moduleRoutes = [
   {
     path: "/comparison",
     route: ComparisonRoutes,
+  },
+  {
+    path: "/schedule",
+    route: ScheduleRoutes,
   },
 ];
 

@@ -8,6 +8,7 @@ import {
   deleteDoctorValidationSchema,
   getDoctorsValidationSchema,
   getPublishedDoctorsValidationSchema,
+  getSingleDoctorValidationSchema,
   updateDoctorValidationSchema,
 } from "./doctor.validation";
 import authMiddleware from "../../middlewares/authMiddleware";
@@ -15,13 +16,6 @@ import { USER_ROLES } from "../user/user.constant";
 import upload from "../../helpers/upload";
 
 const router = express.Router();
-
-/* Public: Get published doctors list */
-router.get(
-  "/published-doctors",
-  validationMiddleware(getPublishedDoctorsValidationSchema),
-  DoctorController.getPublishedDoctors
-);
 
 /* Admin: Create doctor directly */
 router.post(
@@ -48,12 +42,30 @@ router.patch(
   DoctorController.changeDoctorStatus,
 );
 
-/* Admin: Get all doctors */
 router.get(
   "/get-doctors",
   authMiddleware(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN),
   validationMiddleware(getDoctorsValidationSchema),
   DoctorController.getDoctors,
+);
+
+router.get(
+  "/published-doctors",
+  validationMiddleware(getPublishedDoctorsValidationSchema),
+  DoctorController.getPublishedDoctors
+);
+
+router.get(
+  "/single-published-doctor/:doctorId",
+  validationMiddleware(getSingleDoctorValidationSchema),
+  DoctorController.getSinglePublishedDoctor
+);
+
+router.get(
+  "/single-doctor/:doctorId",
+  authMiddleware(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN),
+  validationMiddleware(getSingleDoctorValidationSchema),
+  DoctorController.getSingleDoctor
 );
 
 /* Public/Authenticated: Get single doctor details */

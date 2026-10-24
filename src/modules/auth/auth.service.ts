@@ -228,20 +228,17 @@ const registerPatient = async (payload: IUser) => {
   }
 };
 
-const registerPatientDraft = registerPatient;
-
 /*=========== register doctor (Self-registration) ============*/
 const registerDoctor = async (req: any) => {
+  // Check image
+  if (!req?.file) {
+    throw new BadRequestError("Image is required");
+  }
+
   const payload = req.body || req;
   let uploadedImage: { img_url: string; public_id: string } | null = null;
 
   try {
-    // 1. Handle profile image from file upload or payload if present
-    if (req.file) {
-      uploadedImage = await uploadToCloudinary(req.file.path, "doctor");
-      payload.profileImg = uploadedImage.img_url;
-    }
-
     const email = payload.email?.toLowerCase()?.trim();
     const phone = payload.phone?.trim();
     const fullName = payload.fullName?.trim();
@@ -250,10 +247,9 @@ const registerDoctor = async (req: any) => {
       specialization,
       bmdcNumber,
       password,
-      profileImg = "",
     } = payload;
 
-    // 2. Check if user with this email already exists
+    // 1. Check if user with this email already exists
     const existingUser = await UserModel.findOne({ email });
     if (existingUser) {
       // If account is blocked
@@ -322,6 +318,12 @@ const registerDoctor = async (req: any) => {
             await DoctorModel.deleteOne({ _id: existingDoctor._id });
           }
         }
+      }
+
+      // Upload image to Cloudinary only after all validations pass
+      if (req.file) {
+        uploadedImage = await uploadToCloudinary(req.file.path, "doctor");
+        payload.profileImg = uploadedImage.img_url;
       }
 
       if (fullName) existingUser.fullName = fullName;
@@ -418,11 +420,17 @@ const registerDoctor = async (req: any) => {
       }
     }
 
-    // 5. Generate 6-digit OTP
+    // Upload image to Cloudinary only after all validations pass
+    if (req.file) {
+      uploadedImage = await uploadToCloudinary(req.file.path, "doctor");
+      payload.profileImg = uploadedImage.img_url;
+    }
+
+    // 4. Generate 6-digit OTP
     const otp = generateOTP();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-    // 6. Transaction to create User, Doctor profile, and OTP
+    // 5. Transaction to create User, Doctor profile, and OTP
     const session = await mongoose.startSession();
     try {
       session.startTransaction();
@@ -434,7 +442,7 @@ const registerDoctor = async (req: any) => {
             fullName,
             email,
             phone,
-            profileImg,
+            profileImg: payload.profileImg,
             password,
             role: USER_ROLES.DOCTOR,
             isEmailVerified: false,
@@ -773,7 +781,6 @@ const loginUser = async (payload: ILogin, ip: string) => {
       email: user.email,
       fullName: user.fullName,
       profileImg: user.profileImg,
-      role: user.role
     };
   } catch (err) {
     await session.abortTransaction();
@@ -1414,7 +1421,6 @@ const deleteAccount = async (loginUserId: string, password: string) => {
 
 const AuthService = {
   registerPatient,
-  registerPatientDraft,
   registerDoctor,
   verifyAccount,
   resendVerificationEmail,
