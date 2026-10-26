@@ -9,6 +9,7 @@ import {
   emailValidationSchema,
   loginValidationSchema,
   refreshTokenValidationSchema,
+  registerAgentValidationSchema,
   registerDoctorValidationSchema,
   registerPatientValidationSchema,
   setNewPasswordValidationSchema,
@@ -35,6 +36,12 @@ router.post(
 );
 
 router.post(
+  "/register-agent",
+  validationMiddleware(registerAgentValidationSchema),
+  AuthController.registerAgent,
+);
+
+router.post(
   "/verify-account",
   authRateLimiter,
   validationMiddleware(verifyOtpValidationSchema),
@@ -55,6 +62,13 @@ router.post(
 );
 
 router.post(
+  "/login-agent",
+  authRateLimiter,
+  validationMiddleware(loginValidationSchema),
+  AuthController.loginAgent,
+);
+
+router.post(
   "/login-admin",
   authRateLimiter,
   validationMiddleware(loginValidationSchema),
@@ -63,25 +77,25 @@ router.post(
 
 router.post(
   "/logout",
-  AuthMiddleware(USER_ROLES.PATIENT, USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN, USER_ROLES.DOCTOR),
+  AuthMiddleware(USER_ROLES.PATIENT, USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN, USER_ROLES.DOCTOR, USER_ROLES.AGENT),
   AuthController.logout,
 );
 router.post(
   "/logout-all",
-  AuthMiddleware(USER_ROLES.PATIENT, USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN, USER_ROLES.DOCTOR),
+  AuthMiddleware(USER_ROLES.PATIENT, USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN, USER_ROLES.DOCTOR, USER_ROLES.AGENT),
   AuthController.logoutAll,
 );
 
 router.get(
   "/get-all-sessions",
-  AuthMiddleware(USER_ROLES.PATIENT, USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN, USER_ROLES.DOCTOR),
+  AuthMiddleware(USER_ROLES.PATIENT, USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN, USER_ROLES.DOCTOR, USER_ROLES.AGENT),
   AuthController.getAllSessions,
 );
 
 
 router.patch(
   "/revoke-session/:sessionId",
-  AuthMiddleware(USER_ROLES.PATIENT, USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN, USER_ROLES.DOCTOR),
+  AuthMiddleware(USER_ROLES.PATIENT, USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN, USER_ROLES.DOCTOR, USER_ROLES.AGENT),
   AuthController.revokeSession,
 );
 
@@ -93,7 +107,7 @@ router.post(
 
 router.patch(
   "/change-password",
-  AuthMiddleware(USER_ROLES.PATIENT, USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN, USER_ROLES.DOCTOR),
+  AuthMiddleware(USER_ROLES.PATIENT, USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN, USER_ROLES.DOCTOR, USER_ROLES.AGENT),
   validationMiddleware(changePasswordValidationSchema),
   AuthController.changePassword,
 );
@@ -134,7 +148,7 @@ router.patch(
 
 router.delete(
   "/delete-account",
-  AuthMiddleware(USER_ROLES.PATIENT, USER_ROLES.DOCTOR),
+  AuthMiddleware(USER_ROLES.PATIENT, USER_ROLES.DOCTOR, USER_ROLES.AGENT),
   validationMiddleware(deleteAccountValidationSchema),
   AuthController.deleteAccount,
 );

@@ -9,6 +9,8 @@ import SupportRoutes from "../modules/support/support.route";
 import DashboardRoutes from "../modules/dashboard/dashboard.route";
 import ComparisonRoutes from "../modules/comparison/comparison.route";
 import ScheduleRoutes from "../modules/schedule/schedule.route";
+import AgentRoutes from "../modules/agent/agent.route";
+import AgentPatientRoutes from "../modules/agentPatient/agentPatient.route";
 
 const router = express.Router();
 
@@ -52,6 +54,14 @@ const moduleRoutes = [
   {
     path: "/schedule",
     route: ScheduleRoutes,
+  },
+  {
+    path: "/agent",
+    route: AgentRoutes,
+  },
+  {
+    path: "/agent-patient",
+    route: AgentPatientRoutes,
   },
 ];
 

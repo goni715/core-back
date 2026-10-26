@@ -11,6 +11,7 @@ export const ACCOUNT_STATUS_VALUES = Object.values(ACCOUNT_STATUS);
 export const USER_ROLES = {
   PATIENT: "patient",
   DOCTOR: "doctor",
+  AGENT: "agent",
   ADMIN: "admin",
   SUPER_ADMIN: "super_admin",
 } as const;

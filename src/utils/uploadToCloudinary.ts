@@ -2,12 +2,13 @@
 
 import cloudinary from "../helpers/cloudinary";
 
-export type TFolder = 'user' | 'hospital' | 'doctor';
+export type TFolder = "user" | "hospital" | "doctor" | "agent" | "patient_report";
 
 const uploadToCloudinary = async (path: string, folder: TFolder) => {
   try {
     const result = await cloudinary.uploader.upload(path, {
-      folder: `Coffee/${folder}`,
+      folder: `Health/${folder}`,
+      resource_type: "auto",
     });
 
     return {

@@ -25,6 +25,15 @@ const registerDoctor = asyncHandler(async (req, res) => {
   });
 });
 
+const registerAgent = asyncHandler(async (req, res) => {
+  const result = await AuthService.registerAgent(req.body);
+  res.status(201).json({
+    success: true,
+    message: result.message,
+    data: null,
+  });
+});
+
 const verifyAccount = asyncHandler(async (req, res) => {
   await AuthService.verifyAccount(req.body);
   res.status(200).json({
@@ -60,6 +69,36 @@ const loginUser = asyncHandler(async (req, res) => {
     secure: config.node_env === "production",
     maxAge: refreshTokenMaxAge,
     sameSite: config.node_env === "production" ? "none" : "lax", // strict: Prevents CSRF attacks
+    path: "/",
+  });
+
+  res.status(200).json({
+    success: true,
+    message: "Login successfull",
+    data: {
+      accessToken,
+      refreshToken,
+      ...rest,
+    },
+  });
+});
+
+const loginAgent = asyncHandler(async (req, res) => {
+  const ip = req.ip;
+  const { accessToken, refreshToken, ...rest } = await AuthService.loginAgent(
+    req.body,
+    ip as string,
+  );
+
+  const refreshTokenMaxAge = req.body.isRememberMe
+    ? Number(config.refreshToken.refresh_token_cookie_max_age_remember)
+    : Number(config.refreshToken.refresh_token_cookie_max_age);
+
+  res.cookie("refreshToken", refreshToken, {
+    httpOnly: true,
+    secure: config.node_env === "production",
+    maxAge: refreshTokenMaxAge,
+    sameSite: config.node_env === "production" ? "none" : "lax",
     path: "/",
   });
 
@@ -304,9 +343,11 @@ const deleteAccount = asyncHandler(async (req, res) => {
 const AuthController = {
   registerPatient,
   registerDoctor,
+  registerAgent,
   verifyAccount,
   resendVerificationEmail,
   loginUser,
+  loginAgent,
   loginAdmin,
   logout,
   logoutAll,

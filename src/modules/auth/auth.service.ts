@@ -37,8 +37,11 @@ import { generateResetToken } from "../../utils/generateResetToken";
 import decrypt from "../../utils/decrypt";
 import DoctorModel from "../doctor/doctor.model";
 import { DOCTOR_APPROVAL_STATUS, DOCTOR_REGISTRATION_SOURCE, DOCTOR_STATUS, DOCTOR_TITLE } from "../doctor/doctor.constant";
+import AgentModel from "../agent/agent.model";
+import { AGENT_APPROVAL_STATUS, AGENT_STATUS } from "../agent/agent.constant";
 import uploadToCloudinary from "../../utils/uploadToCloudinary";
 import deleteFromCloudinary from "../../utils/deleteFromCloudinary";
+import { IAgent, TAgentPayload } from "../agent/agent.interface";
 
 /*============ register patient (With OTP) ============*/
 const registerPatient = async (payload: IUser) => {
@@ -532,6 +535,197 @@ const registerDoctor = async (req: any) => {
   }
 };
 
+/*============ register agent (With OTP) ============*/
+const registerAgent = async (payload: TAgentPayload) => {
+  const { email, phone, fullName, agencyName, password } = payload;
+
+  // 1. Check if user with this email already exists
+  const existingUser = await UserModel.findOne({ email });
+  if (existingUser) {
+
+    // If account is already verified or active
+    if (
+      existingUser.status === ACCOUNT_STATUS.ACTIVE ||
+      existingUser.isEmailVerified
+    ) {
+      throw new ConflictError("An account with this email already exists.");
+    }
+
+    // Account exists but is unverified (Pending) -> Check OTP cooldown
+    const existingOtp = await OtpModel.findOne({
+      userId: existingUser._id,
+      email,
+      type: OTP_TYPE.REGISTER,
+    });
+
+    if (existingOtp) {
+      const now = Date.now();
+      const updated = new Date(existingOtp.updatedAt).getTime();
+      const oneMinute = 1 * 60 * 1000;
+      if (now - updated < oneMinute) {
+        throw new ConflictError("OTP can only be resent after 1 minute");
+      }
+    }
+
+    // If phone number is changed, check uniqueness
+    if (phone && phone !== existingUser.phone) {
+      const existingPhone = await UserModel.findOne({
+        phone,
+        _id: { $ne: existingUser._id },
+      });
+      if (existingPhone) {
+        if (existingPhone.status === ACCOUNT_STATUS.BLOCKED) {
+          throw new ForbiddenError("Your account is blocked.");
+        }
+        if (
+          existingPhone.status === ACCOUNT_STATUS.ACTIVE ||
+          existingPhone.isEmailVerified
+        ) {
+          throw new ConflictError(
+            "An account with this phone number already exists.",
+          );
+        }
+      }
+      existingUser.phone = phone;
+    }
+
+    if (fullName) existingUser.fullName = fullName;
+    if (password) existingUser.password = password; // pre-save hook will hash password
+
+    const otp = generateOTP();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+    //transaction & rollback
+    const session = await mongoose.startSession();
+
+    try {
+      session.startTransaction();
+
+      // Save updated user data
+      await existingUser.save({ session });
+
+      // Update agent profile
+      await AgentModel.updateOne(
+        { userId: existingUser._id },
+        {
+          agencyName,
+        },
+        { session, upsert: true },
+      );
+
+      //update otp
+      await OtpModel.updateOne(
+        { email, userId: existingUser._id },
+        { otp, expiresAt, type: OTP_TYPE.REGISTER, isVerified: false },
+        { upsert: true, runValidators: true, session },
+      );
+
+      //transaction success
+      await session.commitTransaction();
+
+      // Resend verification email
+      await sendVerificationEmail(email, otp.toString());
+
+      return {
+        message: "Verification email resent. Please check your inbox."
+      };
+    } catch (err) {
+      await session.abortTransaction();
+      throw err;
+    } finally {
+      await session.endSession();
+    }
+  }
+
+  // 2. Check if user with this phone already exists
+  if (phone) {
+    const existingPhone = await UserModel.findOne({ phone });
+    if (existingPhone) {
+      if (existingPhone.status === ACCOUNT_STATUS.BLOCKED) {
+        throw new ForbiddenError("Your account is blocked.");
+      }
+      if (
+        existingPhone.status === ACCOUNT_STATUS.ACTIVE ||
+        existingPhone.isEmailVerified
+      ) {
+        throw new ConflictError(
+          "An account with this phone number already exists.",
+        );
+      }
+    }
+  }
+
+  // 3. Generate 6-digit OTP
+  const otp = generateOTP();
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+  // 4. Transaction to create User, Agent profile, and OTP
+  const session = await mongoose.startSession();
+  try {
+    session.startTransaction();
+
+    // Create User 
+    const newUser = await UserModel.create(
+      [
+        {
+          fullName,
+          email,
+          phone,
+          password,
+          role: USER_ROLES.AGENT,
+          isEmailVerified: false,
+          status: ACCOUNT_STATUS.PENDING,
+        },
+      ],
+      { session },
+    );
+
+
+    // Create Agent profile (approvalStatus: pending, status: active)
+     await AgentModel.create(
+      [
+        {
+          userId: newUser?.[0]?._id!,
+          agencyName,
+          approvalStatus: AGENT_APPROVAL_STATUS.PENDING,
+          status: AGENT_STATUS.ACTIVE,
+        },
+      ],
+      { session },
+    );
+
+
+    // Create OTP in OtpModel
+    await OtpModel.create(
+      [
+        {
+          userId: newUser?.[0]?._id!,
+          email,
+          otp,
+          type: OTP_TYPE.REGISTER,
+          expiresAt,
+          isVerified: false,
+        },
+      ],
+      { session },
+    );
+
+    await session.commitTransaction();
+
+    // Send verification email with OTP
+    await sendVerificationEmail(email, otp.toString());
+
+    return {
+      message: "Please check your email to verify."
+    };
+  } catch (err) {
+    await session.abortTransaction();
+    throw err;
+  } finally {
+    await session.endSession();
+  }
+};
+
 /*============ verify account  ============*/
 const verifyAccount = async (payload: IVerifyOTp) => {
   const { email, otp } = payload;
@@ -781,6 +975,137 @@ const loginUser = async (payload: ILogin, ip: string) => {
       email: user.email,
       fullName: user.fullName,
       profileImg: user.profileImg,
+    };
+  } catch (err) {
+    await session.abortTransaction();
+    await session.endSession();
+    throw err;
+  }
+};
+
+/*============ login agent  ============*/
+const loginAgent = async (payload: ILogin, ip: string) => {
+  const { email, password, isRememberMe } = payload;
+  const user = await UserModel.findOne({ email }).select("+password");
+  if (!user) {
+    throw new NotFoundError(`No account found for this email address.`);
+  }
+
+  //check password
+  const isPasswordMatch = await checkPassword(password, user.password);
+  if (!isPasswordMatch) {
+    throw new UnprocessableError("The password you've entered is incorrect.");
+  }
+
+  //check email is not verified
+  if (!user.isEmailVerified) {
+    throw new ForbiddenError("Please verify your account.");
+  }
+
+  //check user is blocked
+  if (user.status === ACCOUNT_STATUS.BLOCKED) {
+    throw new ForbiddenError("Your account is blocked.");
+  }
+
+  //check role is agent
+  if (user.role !== USER_ROLES.AGENT) {
+    throw new ForbiddenError("Sorry! You have no access to login as an agent.");
+  }
+
+  // If user is an agent, allow login without approval (only block if rejected)
+  const agentProfile = await AgentModel.findOne({ userId: user._id });
+  if (agentProfile && agentProfile.approvalStatus === AGENT_APPROVAL_STATUS.REJECTED) {
+    throw new ForbiddenError(
+      "Your registration was rejected by administrator.",
+    );
+  }
+
+  //transaction & rollback
+  const session = await mongoose.startSession();
+
+  try {
+    session.startTransaction();
+
+    //create refreshToken
+    const refreshToken = createToken(
+      {
+        userId: String(user._id),
+        email: user.email,
+        tokenVersion: user.tokenVersion,
+      },
+      config.jwt.jwt_refresh_secret as Secret,
+      isRememberMe
+        ? (config.jwt.jwt_refresh_expires_in_remember as TJwtExpiresIn)
+        : (config.jwt.jwt_refresh_expires_in as TJwtExpiresIn),
+    );
+
+    // check active sessions
+    const activeSessions = await SessionModel.countDocuments({
+      userId: user._id,
+      revoked: false,
+    }).session(session);
+
+    // delete all sessions if sessions exceed max sessions
+    if (activeSessions >= Number(config.max_sessions)) {
+      await SessionModel.deleteMany(
+        {
+          userId: user._id,
+        },
+        { session },
+      );
+    }
+
+    const expiresInMs = isRememberMe
+      ? Number(config.refreshToken.refresh_token_cookie_max_age_remember)
+      : Number(config.refreshToken.refresh_token_cookie_max_age);
+
+    const expireDate = new Date(Date.now() + expiresInMs);
+
+    const refreshTokenHash = makeHash(refreshToken);
+    const newSession = await SessionModel.create(
+      [
+        {
+          userId: user._id,
+          refreshTokenHash,
+          ip,
+          expiresAt: expireDate,
+        },
+      ],
+      { session },
+    );
+
+    //update the lastLoginAt
+    await UserModel.updateOne(
+      { _id: user._id },
+      { lastLoginAt: new Date() },
+      { session },
+    );
+
+    await session.commitTransaction();
+    await session.endSession();
+
+    //create accessToken
+    const accessToken = createToken(
+      {
+        userId: String(user._id),
+        email: user.email,
+        role: user.role,
+        tokenVersion: user.tokenVersion,
+        sessionId: newSession[0]?._id!?.toString(),
+      },
+      config.jwt.jwt_access_secret as Secret,
+      config.jwt.jwt_access_expires_in as TJwtExpiresIn,
+    );
+
+    return {
+      accessToken,
+      refreshToken,
+      userId: user._id,
+      email: user.email,
+      fullName: user.fullName,
+      profileImg: user.profileImg,
+      agencyName: agentProfile?.agencyName || "",
+      approvalStatus: agentProfile?.approvalStatus,
     };
   } catch (err) {
     await session.abortTransaction();
@@ -1397,6 +1722,16 @@ const deleteAccount = async (loginUserId: string, password: string) => {
       { session },
     );
 
+    //delete doctor or agent profile if exists
+    await DoctorModel.deleteOne(
+      { userId: new ObjectId(loginUserId) },
+      { session },
+    );
+    await AgentModel.deleteOne(
+      { userId: new ObjectId(loginUserId) },
+      { session },
+    );
+
 
     //delete all sessions
     await SessionModel.deleteMany(
@@ -1422,9 +1757,11 @@ const deleteAccount = async (loginUserId: string, password: string) => {
 const AuthService = {
   registerPatient,
   registerDoctor,
+  registerAgent,
   verifyAccount,
   resendVerificationEmail,
   loginUser,
+  loginAgent,
   loginAdmin,
   logout,
   logoutFromAll,

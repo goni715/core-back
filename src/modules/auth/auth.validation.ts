@@ -75,12 +75,23 @@ export const registerDoctorValidationSchema = z.object({
   }),
 });
 
+export const registerAgentValidationSchema = z.object({
+  body: z.object({
+    fullName: fullNameZodSchema,
+    email: emailZodSchema,
+    phone: phoneNumberZodSchema,
+    agencyName: requiredStringSchema("agencyName"),
+    password: passwordZodSchema,
+  }),
+});
+
 export const verifyOtpValidationSchema = z.object({
   body: z.object({
     email: emailZodSchema,
     otp: otpZodSchema,
   }),
 });
+
 
 const isRememberMeZodSchema = booleanSchema('isRememberMe')
   .optional()
