@@ -27,6 +27,7 @@ const ageZodSchema = z.preprocess(
 export const createAgentPatientValidationSchema = z.object({
   body: z
     .object({
+      partnerId: z.string().trim().optional(),
       fullName: requiredStringSchema("fullName"),
       phone: phoneNumberZodSchema,
       age: ageZodSchema,
@@ -89,6 +90,8 @@ export const getAgentPatientsValidationSchema = z.object({
     sortOrder: z.enum(["asc", "desc"]).optional(),
     gender: z.string().optional(),
     preferredCountry: z.string().optional(),
+    partnerId: z.string().optional(),
+    partner: z.string().optional(),
     status: enumSchema("status", PATIENT_CASE_STATUS_VALUES).optional(),
   }),
 });

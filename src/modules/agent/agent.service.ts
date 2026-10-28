@@ -9,7 +9,6 @@ import UserModel from "../user/user.model";
 import {
   AGENT_APPROVAL_STATUS,
   AGENT_SEARCHABLE_FIELDS,
-  AGENT_STATUS,
 } from "./agent.constant";
 import {
   TAgentQuery,
@@ -22,7 +21,6 @@ const approveOrRejectAgent = async (
   agentId: string,
   payload: {
     approvalStatus: (typeof AGENT_APPROVAL_STATUS)[keyof typeof AGENT_APPROVAL_STATUS];
-    status?: (typeof AGENT_STATUS)[keyof typeof AGENT_STATUS];
   },
 ) => {
   const agent = await AgentModel.findById(agentId);
@@ -30,7 +28,7 @@ const approveOrRejectAgent = async (
     throw new NotFoundError("Agent not found with the provided ID");
   }
 
-  const { approvalStatus, status } = payload;
+  const { approvalStatus } = payload;
 
   const session = await mongoose.startSession();
   try {
@@ -38,7 +36,6 @@ const approveOrRejectAgent = async (
 
     if (approvalStatus === AGENT_APPROVAL_STATUS.APPROVED) {
       agent.approvalStatus = AGENT_APPROVAL_STATUS.APPROVED;
-      agent.status = status || AGENT_STATUS.ACTIVE;
 
       await agent.save({ session });
 
@@ -50,7 +47,6 @@ const approveOrRejectAgent = async (
       );
     } else if (approvalStatus === AGENT_APPROVAL_STATUS.REJECTED) {
       agent.approvalStatus = AGENT_APPROVAL_STATUS.REJECTED;
-      agent.status = status || AGENT_STATUS.INACTIVE;
 
       await agent.save({ session });
 
@@ -71,26 +67,6 @@ const approveOrRejectAgent = async (
   } finally {
     await session.endSession();
   }
-};
-
-/*=========== change agent status ============*/
-const changeAgentStatus = async (
-  agentId: string,
-  payload: {
-    status: (typeof AGENT_STATUS)[keyof typeof AGENT_STATUS];
-  },
-) => {
-  const agent = await AgentModel.findById(agentId);
-  if (!agent) {
-    throw new NotFoundError("Agent not found with the provided ID");
-  }
-
-  const { status } = payload;
-
-  agent.status = status;
-  await agent.save();
-
-  return agent;
 };
 
 /*=========== get agents ============*/
@@ -156,12 +132,12 @@ const getAgents = async (query: TAgentQuery) => {
         _id: 1,
         userId: "$userId",
         agencyName: "$agencyName",
-        approvalStatus: "$approvalStatus",
-        status: "$status",
         fullName: "$fullName",
         email: "$email",
         phone: "$phone",
         profileImg: "$profileImg",
+        status: "$status",
+        approvalStatus: "$approvalStatus",
         userStatus: "$userStatus",
         createdAt: "$createdAt",
         updatedAt: "$updatedAt",
@@ -278,7 +254,6 @@ const deleteAgent = async (agentId: string) => {
 
 const AgentService = {
   approveOrRejectAgent,
-  changeAgentStatus,
   getAgents,
   getSingleAgent,
   updateAgent,

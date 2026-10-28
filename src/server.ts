@@ -18,7 +18,7 @@ async function main() {
   try {
     await dbCoonect();
     server.listen(port, () => {
-      console.log(`Coffee Membership Backend listening on port http://localhost:${port}`);
+      console.log(`Health Backend listening on port http://localhost:${port}`);
     });
   } catch (error) {
     console.log(error);

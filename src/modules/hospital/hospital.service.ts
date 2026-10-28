@@ -217,6 +217,42 @@ const getPublishedHospitals = async (query: THospitalQuery) => {
   };
 };
 
+/*============== get single published hospitals ================== */
+const getSinglePublishedHospital = async (hospitalId: string) => {
+
+  const result = await HospitalModel.aggregate([
+    {
+      $match: {
+        _id: new Types.ObjectId(hospitalId),
+        status: HOSPITAL_STATUS.PUBLISHED,
+      },
+    },
+    {
+      $project: {
+        _id: 1,
+        name: 1,
+        image: 1,
+        address: 1,
+        contactNumber: 1,
+        email: 1,
+        website: 1,
+        specialities: 1,
+        languages: 1,
+        ratings: 1,
+        totalReviews: 1,
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    },
+  ]);
+
+  if (result.length === 0) {
+    throw new NotFoundError("Hospital not found with the provided ID");
+  }
+
+  return result[0];
+};
+
 /*============== get single hospital by id ================== */
 const getHospitalById = async (hospitalId: string) => {
   if (!Types.ObjectId.isValid(hospitalId)) {
@@ -310,6 +346,7 @@ const HospitalService = {
   createHospital,
   getHospitals,
   getPublishedHospitals,
+  getSinglePublishedHospital,
   getHospitalById,
   updateHospital,
   deleteHospital,

@@ -52,6 +52,12 @@ const agentPatientSchema = new Schema<IAgentPatient>(
       required: [true, "agentUserId is required"],
       index: true,
     },
+    partnerId: {
+      type: String,
+      trim: true,
+      default: null,
+      index: true,
+    },
     fullName: {
       type: String,
       required: [true, "Patient full name is required"],
@@ -142,6 +148,7 @@ const agentPatientSchema = new Schema<IAgentPatient>(
 
 // Indexes for query performance
 agentPatientSchema.index({ agentUserId: 1, status: 1 });
+agentPatientSchema.index({ agentUserId: 1, partnerId: 1 });
 agentPatientSchema.index({ agentUserId: 1, createdAt: -1 });
 agentPatientSchema.index({ createdAt: -1 });
 

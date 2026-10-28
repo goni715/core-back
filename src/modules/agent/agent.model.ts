@@ -3,8 +3,6 @@ import { IAgent } from "./agent.interface";
 import {
   AGENT_APPROVAL_STATUS,
   AGENT_APPROVAL_STATUS_VALUES,
-  AGENT_STATUS,
-  AGENT_STATUS_VALUES,
 } from "./agent.constant";
 
 const agentSchema = new Schema<IAgent>(
@@ -27,15 +25,6 @@ const agentSchema = new Schema<IAgent>(
         message: "{VALUE} is not a valid approval status",
       },
       default: AGENT_APPROVAL_STATUS.PENDING,
-      index: true,
-    },
-    status: {
-      type: String,
-      enum: {
-        values: AGENT_STATUS_VALUES,
-        message: "{VALUE} is not a valid status",
-      },
-      default: AGENT_STATUS.ACTIVE,
       index: true,
     },
   },

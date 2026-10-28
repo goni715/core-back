@@ -32,6 +32,16 @@ const getPublishedHospitals = asyncHandler(async (req, res) => {
   });
 });
 
+const getSinglePublishedHospital = asyncHandler(async (req, res) => {
+  const { hospitalId } = req.params;
+  const result = await HospitalService.getSinglePublishedHospital(hospitalId as string);
+  res.status(200).json({
+    success: true,
+    message: "Hospital is retrieved successfully",
+    data: result,
+  });
+});
+
 const getHospitalById = asyncHandler(async (req, res) => {
   const { hospitalId } = req.params;
   const result = await HospitalService.getHospitalById(hospitalId as string);
@@ -69,6 +79,7 @@ const HospitalController = {
   createHospital,
   getHospitals,
   getPublishedHospitals,
+  getSinglePublishedHospital,
   getHospitalById,
   updateHospital,
   deleteHospital,

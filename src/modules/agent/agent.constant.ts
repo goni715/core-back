@@ -8,12 +8,6 @@ export const AGENT_APPROVAL_STATUS_VALUES = Object.values(
   AGENT_APPROVAL_STATUS,
 );
 
-export const AGENT_STATUS = {
-  ACTIVE: "active",
-  INACTIVE: "inactive",
-} as const;
-
-export const AGENT_STATUS_VALUES = Object.values(AGENT_STATUS);
 
 export const AGENT_SEARCHABLE_FIELDS = [
   "agencyName",

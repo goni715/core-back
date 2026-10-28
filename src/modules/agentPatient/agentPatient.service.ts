@@ -110,6 +110,10 @@ const getPatients = async (
   if (gender && (gender as string) !== "all") {
     additionalFilters.gender = String(gender).toLowerCase();
   }
+  const partnerFilter = query.partnerId || query.partner;
+  if (partnerFilter && partnerFilter !== "all") {
+    additionalFilters.partnerId = partnerFilter;
+  }
 
   const matchStage = {
     ...scopeFilter,
@@ -125,6 +129,7 @@ const getPatients = async (
         _id: 1,
         caseId: 1,
         agentUserId: 1,
+        partnerId: 1,
         fullName: 1,
         name: "$fullName",
         phone: 1,

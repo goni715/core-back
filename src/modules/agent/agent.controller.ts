@@ -19,18 +19,6 @@ const approveOrRejectAgent = asyncHandler(async (req, res) => {
   });
 });
 
-const changeAgentStatus = asyncHandler(async (req, res) => {
-  const { agentId } = req.params;
-  const result = await AgentService.changeAgentStatus(
-    agentId as string,
-    req.body,
-  );
-  res.status(200).json({
-    success: true,
-    message: `Agent status updated to ${result?.status} successfully`,
-    data: result,
-  });
-});
 
 const getAgents = asyncHandler(async (req, res) => {
   const validatedQuery = (req as any).validatedQuery;
@@ -75,7 +63,6 @@ const deleteAgent = asyncHandler(async (req, res) => {
 
 const AgentController = {
   approveOrRejectAgent,
-  changeAgentStatus,
   getAgents,
   getSingleAgent,
   updateAgent,

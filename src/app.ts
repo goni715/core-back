@@ -37,7 +37,7 @@ if (config.node_env === "production") {
 
 
 app.get("/", (req: Request, res: Response) => {
-  res.send(`Coffee Membership Backend server is running !`);
+  res.send(`Health Backend server is running !`);
 });
 
 //custom middleware implementation

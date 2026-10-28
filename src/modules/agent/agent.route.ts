@@ -3,7 +3,6 @@ import AgentController from "./agent.controller";
 import validationMiddleware from "../../middlewares/validationMiddleware";
 import {
   approvalAgentValidationSchema,
-  changeAgentStatusValidationSchema,
   deleteAgentValidationSchema,
   getAgentsValidationSchema,
   getSingleAgentValidationSchema,
@@ -23,17 +22,9 @@ router.patch(
   AgentController.approveOrRejectAgent,
 );
 
-/* Admin: Change agent status */
-router.patch(
-  "/change-status/:agentId",
-  authMiddleware(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN),
-  validationMiddleware(changeAgentStatusValidationSchema),
-  AgentController.changeAgentStatus,
-);
-
 /* Admin: Get all agents */
 router.get(
-  "/get-agents",
+  "/all-agents",
   authMiddleware(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN),
   validationMiddleware(getAgentsValidationSchema),
   AgentController.getAgents,

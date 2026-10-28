@@ -9,7 +9,6 @@ import { enumSchema } from "../../schemas/enum.schema";
 import {
   AGENT_APPROVAL_STATUS,
   AGENT_APPROVAL_STATUS_VALUES,
-  AGENT_STATUS_VALUES,
 } from "./agent.constant";
 import { ACCOUNT_STATUS_VALUES } from "../user/user.constant";
 
@@ -32,14 +31,6 @@ export const approvalAgentValidationSchema = z.object({
   }),
 });
 
-export const changeAgentStatusValidationSchema = z.object({
-  params: z.object({
-    agentId: agentIdZodSchema,
-  }),
-  body: z.object({
-    status: enumSchema("status", AGENT_STATUS_VALUES),
-  }),
-});
 
 export const updateAgentValidationSchema = z.object({
   params: z.object({
@@ -51,7 +42,6 @@ export const updateAgentValidationSchema = z.object({
       phone: phoneNumberZodSchema.optional(),
       agencyName: z.string().trim().optional(),
       profileImg: z.string().optional(),
-      status: enumSchema("status", AGENT_STATUS_VALUES).optional(),
       approvalStatus: enumSchema(
         "approvalStatus",
         AGENT_APPROVAL_STATUS_VALUES,
@@ -82,11 +72,10 @@ export const getAgentsValidationSchema = z.object({
     limit: z.string().optional(),
     sortOrder: z.string().optional(),
     sortBy: z.string().optional(),
-    status: enumSchema("status", AGENT_STATUS_VALUES).optional(),
+    status: enumSchema("status", ['active', 'blocked']).optional(),
     approvalStatus: enumSchema(
       "approvalStatus",
       AGENT_APPROVAL_STATUS_VALUES,
     ).optional(),
-    userStatus: enumSchema("userStatus", ACCOUNT_STATUS_VALUES).optional(),
   }),
 });

@@ -38,10 +38,10 @@ import decrypt from "../../utils/decrypt";
 import DoctorModel from "../doctor/doctor.model";
 import { DOCTOR_APPROVAL_STATUS, DOCTOR_REGISTRATION_SOURCE, DOCTOR_STATUS, DOCTOR_TITLE } from "../doctor/doctor.constant";
 import AgentModel from "../agent/agent.model";
-import { AGENT_APPROVAL_STATUS, AGENT_STATUS } from "../agent/agent.constant";
+import { AGENT_APPROVAL_STATUS } from "../agent/agent.constant";
 import uploadToCloudinary from "../../utils/uploadToCloudinary";
 import deleteFromCloudinary from "../../utils/deleteFromCloudinary";
-import { IAgent, TAgentPayload } from "../agent/agent.interface";
+import { TAgentPayload } from "../agent/agent.interface";
 
 /*============ register patient (With OTP) ============*/
 const registerPatient = async (payload: IUser) => {
@@ -688,7 +688,6 @@ const registerAgent = async (payload: TAgentPayload) => {
           userId: newUser?.[0]?._id!,
           agencyName,
           approvalStatus: AGENT_APPROVAL_STATUS.PENDING,
-          status: AGENT_STATUS.ACTIVE,
         },
       ],
       { session },

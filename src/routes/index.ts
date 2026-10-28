@@ -11,6 +11,7 @@ import ComparisonRoutes from "../modules/comparison/comparison.route";
 import ScheduleRoutes from "../modules/schedule/schedule.route";
 import AgentRoutes from "../modules/agent/agent.route";
 import AgentPatientRoutes from "../modules/agentPatient/agentPatient.route";
+import ReferralPartnerRoutes from "../modules/referralPartner/referralPartner.route";
 
 const router = express.Router();
 
@@ -62,6 +63,14 @@ const moduleRoutes = [
   {
     path: "/agent-patient",
     route: AgentPatientRoutes,
+  },
+  {
+    path: "/referral-partner",
+    route: ReferralPartnerRoutes,
+  },
+  {
+    path: "/my-network",
+    route: ReferralPartnerRoutes,
   },
 ];
 

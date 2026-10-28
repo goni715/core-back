@@ -74,6 +74,12 @@ export const deleteHospitalValidationSchema = z.object({
   }),
 });
 
+export const getSinglePublishedHospitalValidationSchema = z.object({
+  params: z.object({
+    hospitalId: hospitalIdZodSchema,
+  }),
+});
+
 
 export const getHospitalsValidationSchema = z.object({
   query: z.object({

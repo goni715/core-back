@@ -9,6 +9,7 @@ import {
   deleteHospitalValidationSchema,
   getHospitalsValidationSchema,
   getPublishedHospitalsValidationSchema,
+  getSinglePublishedHospitalValidationSchema,
   updateHospitalValidationSchema,
 } from "./hospital.validation";
 
@@ -33,6 +34,12 @@ router.get(
   "/published-hospitals",
   validationMiddleware(getPublishedHospitalsValidationSchema),
   HospitalController.getPublishedHospitals,
+);
+
+router.get(
+  "/single-published-hospital/:hospitalId",
+  validationMiddleware(getSinglePublishedHospitalValidationSchema),
+  HospitalController.getSinglePublishedHospital,
 );
 
 router.get(
