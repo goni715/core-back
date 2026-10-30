@@ -1,11 +1,13 @@
 import crypto from "crypto";
-import { Types } from "mongoose";
+import { PipelineStage, Types } from "mongoose";
+import BadRequestError from "../../errors/BadRequestError";
 import ConflictError from "../../errors/ConflictError";
 import NotFoundError from "../../errors/NotFoundError";
-import { makeSearchQuery } from "../../helpers/QueryBuilder";
+import { makeFilterQuery, makeSearchQuery } from "../../helpers/QueryBuilder";
 import sendPartnerInviteEmail from "../../utils/email/sendPartnerInviteEmail";
 import generatePartnerId from "../../utils/generatePartnerId";
 import isObjectId from "../../utils/isObjectId";
+import decrypt from "../../utils/decrypt";
 import AgentPatientModel from "../agentPatient/agentPatient.model";
 import UserModel from "../user/user.model";
 import {
@@ -17,14 +19,19 @@ import {
   IReferralPartner,
   TChangePartnerStatusPayload,
   TInviteReferralPartnerPayload,
+  TMyNetworksQuery,
   TNetworkOverviewStats,
   TReferralPartnerQuery,
   TReferralPartnerResponseItem,
   TReferralPartnerStatus,
   TReferralPartnerStatusCounts,
+  TRegisterReferralPartnerPayload,
   TUpdateReferralPartnerPayload,
 } from "./referralPartner.interface";
 import ReferralPartnerModel from "./referralPartner.model";
+import generateReferralToken from "../../utils/generateReferralToken";
+import config from "../../config";
+import { hashedPassword } from "../../helpers/PasswordHelper";
 
 /**
  * Format date to short Month Year string (e.g. "Jan 2026")
@@ -56,10 +63,10 @@ const transformPartnerResponse = (
     badgeClass: "bg-[#d1fae5] text-[#059669]",
   };
 
-  const name = doc.name || doc.fullName || "Partner";
+  const fullName = doc.fullName || "Partner";
   const initials =
     doc.initials ||
-    (name
+    (fullName
       .split(/\s+/)
       .map((n: string) => n[0])
       .join("")
@@ -68,12 +75,15 @@ const transformPartnerResponse = (
 
   return {
     _id: String(doc._id),
-    partnerId: doc.partnerId,
+    refCode: doc.refCode || "",
+    partnerId: doc.refCode || "",
     initials,
-    name,
-    fullName: name,
+    name: fullName,
+    fullName,
     email: doc.email || "",
     phone: doc.phone || "",
+    agencyName: doc.agencyName || "",
+    agentUserId: doc.agentUserId ? String(doc.agentUserId) : undefined,
     joined: formatJoinedDate(doc.joinedDate, status),
     joinedDate: doc.joinedDate || null,
     cases: Number(doc.cases || 0),
@@ -243,7 +253,7 @@ const getSinglePartner = async (agentUserId: string, partnerId: string) => {
     agentUserId: new Types.ObjectId(agentUserId),
     ...(isMongoId
       ? { _id: partnerId }
-      : { partnerId: partnerId.trim().toUpperCase() }),
+      : { refCode: partnerId.trim().toUpperCase() }),
   };
 
   const partner = await ReferralPartnerModel.findOne(query).lean();
@@ -254,7 +264,11 @@ const getSinglePartner = async (agentUserId: string, partnerId: string) => {
   // Fetch recent cases referred by this partner if any
   const recentCases = await AgentPatientModel.find({
     agentUserId: new Types.ObjectId(agentUserId),
-    $or: [{ partnerId: partner.partnerId }, { partnerId: String(partner._id) }],
+    $or: [
+      { subAgentId: partner._id },
+      { partnerId: partner.refCode },
+      { partnerId: String(partner._id) },
+    ],
   })
     .sort({ createdAt: -1 })
     .limit(10)
@@ -271,7 +285,8 @@ const invitePartner = async (
   agentUserId: string,
   payload: TInviteReferralPartnerPayload,
 ) => {
-  const { name, email, phone, notes } = payload;
+  const { name, fullName, email, phone, agencyName, password, notes } = payload;
+  const partnerFullName = (fullName || name || "").trim();
   const normalizedEmail = email.trim().toLowerCase();
 
   // Check if partner already exists for this agent
@@ -286,22 +301,22 @@ const invitePartner = async (
     );
   }
 
-  // Generate unique Partner ID (e.g. RP-0143)
+  // Generate unique refCode (e.g. RP-0143)
   const totalCount = await ReferralPartnerModel.countDocuments({
     agentUserId: new Types.ObjectId(agentUserId),
   });
-  let partnerId = generatePartnerId(totalCount + 101);
+  let refCode = generatePartnerId(totalCount + 101);
 
-  // Ensure global uniqueness of partnerId
-  let duplicate = await ReferralPartnerModel.findOne({ partnerId });
+  // Ensure global uniqueness of refCode
+  let duplicate = await ReferralPartnerModel.findOne({ refCode });
   while (duplicate) {
-    partnerId = generatePartnerId();
-    duplicate = await ReferralPartnerModel.findOne({ partnerId });
+    refCode = generatePartnerId();
+    duplicate = await ReferralPartnerModel.findOne({ refCode });
   }
 
   // Generate invitation token & link
   const inviteToken = crypto.randomBytes(24).toString("hex");
-  const inviteLink = `https://health-medicine-agent-website.vercel.app/register?ref=${partnerId}&token=${inviteToken}`;
+  const inviteLink = `https://health-medicine-agent-website.vercel.app/register?ref=${refCode}&token=${inviteToken}`;
 
   // Fetch Channel Partner user info for the email
   const agentUser = await UserModel.findById(agentUserId).lean();
@@ -309,12 +324,13 @@ const invitePartner = async (
 
   // Create record with 'invited' status
   const partner = await ReferralPartnerModel.create({
-    partnerId,
+    refCode,
     agentUserId: new Types.ObjectId(agentUserId),
-    name: name.trim(),
-    fullName: name.trim(),
+    fullName: partnerFullName,
     email: normalizedEmail,
     phone: phone ? phone.trim() : "",
+    agencyName: (agencyName || "General Agency").trim(),
+    password: password || crypto.randomBytes(8).toString("hex") + "1a",
     status: REFERRAL_PARTNER_STATUS.INVITED,
     inviteToken,
     inviteLink,
@@ -329,8 +345,8 @@ const invitePartner = async (
   // Send invitation email in the background (non-blocking)
   sendPartnerInviteEmail({
     to: normalizedEmail,
-    partnerName: name.trim(),
-    partnerId,
+    partnerName: partnerFullName,
+    partnerId: refCode,
     inviteLink,
     channelPartnerName,
   }).catch((err) => {
@@ -338,6 +354,78 @@ const invitePartner = async (
   });
 
   return transformPartnerResponse(partner);
+};
+
+/* ==================== Register Partner by Referral Link (Self-Registration) ==================== */
+const registerPartner = async (payload: TRegisterReferralPartnerPayload) => {
+  const { referralToken, fullName, email, phone, agencyName, password } =
+    payload;
+
+  // 1. Decrypt referral token to extract refCode and agentUserId
+  let decryptedToken = "";
+  try {
+    decryptedToken = decrypt(referralToken);
+  } catch (err) {
+    throw new BadRequestError("Invalid or corrupted referral token.");
+  }
+
+  const [refCode, agentUserId] = (decryptedToken || "").split(":");
+
+  if (!refCode || !agentUserId || !isObjectId(agentUserId)) {
+    throw new BadRequestError("Invalid referral token data.");
+  }
+
+  // 2. Validate agent user existence
+  const agentUser = await UserModel.findById(agentUserId).lean();
+  if (!agentUser) {
+    throw new NotFoundError("Agent user not found for this referral link.");
+  }
+
+
+  // 3. Check for existing partner with this email
+  const existingPartner = await ReferralPartnerModel.findOne({
+    email,
+    agentUserId,
+    refCode,
+  });
+
+  if (existingPartner) {
+    throw new ConflictError(
+      "A referral partner with this email is already registered.",
+    );
+  }
+
+  // hash password
+  const hashPass = await hashedPassword(password);
+
+  // 4. Create new partner record
+  const partner = await ReferralPartnerModel.create({
+    refCode,
+    agentUserId: new Types.ObjectId(agentUserId),
+    fullName,
+    email,
+    phone,
+    agencyName,
+    password: hashPass,
+    status: REFERRAL_PARTNER_STATUS.ACTIVE,
+    joinedDate: new Date(),
+    lastActiveAt: new Date(),
+    cases: 0,
+    ongoing: 0,
+    done: 0,
+    earnings: 0,
+  });
+
+  return null;
+};
+
+const generateInvitationLink = async (agentUserId: string) => {
+  //generate referral token
+  const referralToken = generateReferralToken(agentUserId);
+  const invitationLink = `${config.frontEndUrl}/${referralToken}`;
+  return {
+    invitationLink,
+  };
 };
 
 /* ==================== Get Channel Partner Invite Link ==================== */
@@ -370,7 +458,7 @@ const updatePartner = async (
     agentUserId: new Types.ObjectId(agentUserId),
     ...(isMongoId
       ? { _id: partnerId }
-      : { partnerId: partnerId.trim().toUpperCase() }),
+      : { refCode: partnerId.trim().toUpperCase() }),
   };
 
   const partner = await ReferralPartnerModel.findOne(query);
@@ -379,10 +467,10 @@ const updatePartner = async (
   }
 
   // Update provided fields
-  if (payload.name) {
-    partner.name = payload.name.trim();
-    partner.fullName = payload.name.trim();
+  if (payload.fullName || payload.name) {
+    partner.fullName = (payload.fullName || payload.name)!.trim();
   }
+  if (payload.agencyName) partner.agencyName = payload.agencyName.trim();
   if (payload.email) partner.email = payload.email.trim().toLowerCase();
   if (payload.phone !== undefined) partner.phone = payload.phone.trim();
   if (payload.notes !== undefined) partner.notes = payload.notes.trim();
@@ -425,7 +513,7 @@ const deletePartner = async (agentUserId: string, partnerId: string) => {
     agentUserId: new Types.ObjectId(agentUserId),
     ...(isMongoId
       ? { _id: partnerId }
-      : { partnerId: partnerId.trim().toUpperCase() }),
+      : { refCode: partnerId.trim().toUpperCase() }),
   };
 
   const partner = await ReferralPartnerModel.findOneAndDelete(query);
@@ -434,8 +522,8 @@ const deletePartner = async (agentUserId: string, partnerId: string) => {
   }
 
   return {
-    deletedPartnerId: partner.partnerId,
-    message: `Referral partner ${partner.name} (${partner.partnerId}) deleted successfully`,
+    deletedPartnerId: partner.refCode,
+    message: `Referral partner ${partner.fullName} (${partner.refCode}) deleted successfully`,
   };
 };
 
@@ -454,11 +542,12 @@ const seedSamplePartners = async (agentUserId: string) => {
 
   const samplePartners = [
     {
-      partnerId: "RP-0112",
-      name: "Nusrat Jahan",
+      refCode: "RP-0112",
       fullName: "Nusrat Jahan",
       email: "nusrat.jahan@example.com",
       phone: "+8801711223344",
+      agencyName: "Jahan Health Agency",
+      password: "SamplePassword123",
       initials: "NJ",
       joinedDate: new Date("2026-01-15"),
       cases: 64,
@@ -468,11 +557,12 @@ const seedSamplePartners = async (agentUserId: string) => {
       status: REFERRAL_PARTNER_STATUS.ACTIVE,
     },
     {
-      partnerId: "RP-0107",
-      name: "Imran Hossain",
+      refCode: "RP-0107",
       fullName: "Imran Hossain",
       email: "imran.hossain@example.com",
       phone: "+8801811223344",
+      agencyName: "Hossain Medical Care",
+      password: "SamplePassword123",
       initials: "IH",
       joinedDate: new Date("2025-12-10"),
       cases: 51,
@@ -482,11 +572,12 @@ const seedSamplePartners = async (agentUserId: string) => {
       status: REFERRAL_PARTNER_STATUS.ACTIVE,
     },
     {
-      partnerId: "RP-0121",
-      name: "Farhana Akter",
+      refCode: "RP-0121",
       fullName: "Farhana Akter",
       email: "farhana.akter@example.com",
       phone: "+8801911223344",
+      agencyName: "Farhana Consultancy",
+      password: "SamplePassword123",
       initials: "FA",
       joinedDate: new Date("2026-02-05"),
       cases: 43,
@@ -496,11 +587,12 @@ const seedSamplePartners = async (agentUserId: string) => {
       status: REFERRAL_PARTNER_STATUS.ACTIVE,
     },
     {
-      partnerId: "RP-0130",
-      name: "Rakib Chowdhury",
+      refCode: "RP-0130",
       fullName: "Rakib Chowdhury",
       email: "rakib.chowdhury@example.com",
       phone: "+8801611223344",
+      agencyName: "Chowdhury Health",
+      password: "SamplePassword123",
       initials: "RC",
       joinedDate: new Date("2026-03-12"),
       cases: 29,
@@ -510,11 +602,12 @@ const seedSamplePartners = async (agentUserId: string) => {
       status: REFERRAL_PARTNER_STATUS.ACTIVE,
     },
     {
-      partnerId: "RP-0136",
-      name: "Mahmudul Hasan",
+      refCode: "RP-0136",
       fullName: "Mahmudul Hasan",
       email: "mahmudul.hasan@example.com",
       phone: "+8801511223344",
+      agencyName: "Hasan Medicare",
+      password: "SamplePassword123",
       initials: "MH",
       joinedDate: new Date("2026-04-18"),
       cases: 22,
@@ -524,11 +617,12 @@ const seedSamplePartners = async (agentUserId: string) => {
       status: REFERRAL_PARTNER_STATUS.ACTIVE,
     },
     {
-      partnerId: "RP-0139",
-      name: "Tasnim Sultana",
+      refCode: "RP-0139",
       fullName: "Tasnim Sultana",
       email: "tasnim.sultana@example.com",
       phone: "+8801411223344",
+      agencyName: "Tasnim Health Net",
+      password: "SamplePassword123",
       initials: "TS",
       joinedDate: new Date("2026-05-22"),
       cases: 14,
@@ -538,11 +632,12 @@ const seedSamplePartners = async (agentUserId: string) => {
       status: REFERRAL_PARTNER_STATUS.ACTIVE,
     },
     {
-      partnerId: "RP-0142",
-      name: "Sadia Rahman",
+      refCode: "RP-0142",
       fullName: "Sadia Rahman",
       email: "sadia.rahman@example.com",
       phone: "+8801311223344",
+      agencyName: "Sadia Health Associates",
+      password: "SamplePassword123",
       initials: "SR",
       joinedDate: null,
       cases: 0,
@@ -566,7 +661,113 @@ const seedSamplePartners = async (agentUserId: string) => {
   };
 };
 
+/*============== get my networks (Agent's referral partners listing) ================== */
+const getMyNetworks = async (
+  agentUserId: string,
+  query: TMyNetworksQuery,
+) => {
+  const {
+    searchTerm,
+    page = 1,
+    limit = 10,
+    sortOrder = "desc",
+    sortBy = "createdAt",
+    ...filters
+  } = query;
+
+  // 1. set up pagination
+  const skip = (Number(page) - 1) * Number(limit);
+
+  // 2. setup sorting
+  const sortDirection = sortOrder === "asc" ? 1 : -1;
+
+  // 3. setup searching
+  let searchQuery: Record<string, unknown> = {};
+  if (searchTerm) {
+    searchQuery = makeSearchQuery(
+      searchTerm,
+      REFERRAL_PARTNER_SEARCHABLE_FIELDS,
+    );
+  }
+
+  // 4. setup filters
+  if (filters.status === "all") {
+    delete filters.status;
+  }
+  let filterQuery: Record<string, unknown> = {};
+  if (filters && Object.keys(filters).length > 0) {
+    filterQuery = makeFilterQuery(filters);
+  }
+
+  // common pipeline
+  const pipeline: PipelineStage[] = [
+    {
+      $match: {
+        agentUserId: new Types.ObjectId(agentUserId),
+        ...searchQuery,
+        ...filterQuery,
+      },
+    },
+  ];
+
+  // Fetch networks list with projection
+  const networks = await ReferralPartnerModel.aggregate([
+    ...pipeline,
+    {
+      $project: {
+        _id: 1,
+        refCode: 1,
+        partnerId: "$refCode",
+        agentUserId: 1,
+        fullName: 1,
+        name: "$fullName",
+        agencyName: 1,
+        email: 1,
+        phone: 1,
+        initials: 1,
+        joinedDate: 1,
+        cases: 1,
+        ongoing: 1,
+        done: 1,
+        earnings: 1,
+        status: 1,
+        inviteToken: 1,
+        inviteLink: 1,
+        notes: 1,
+        lastActiveAt: 1,
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    },
+    { $sort: { [sortBy]: sortDirection } },
+    { $skip: skip },
+    { $limit: Number(limit) },
+  ]);
+
+  // Total count
+  const countPipeline: PipelineStage[] = [
+    ...pipeline,
+    { $count: "totalCount" },
+  ];
+  const totalCountResult = await ReferralPartnerModel.aggregate(countPipeline);
+
+  const totalCount = totalCountResult[0]?.totalCount || 0;
+  const totalPages = Math.ceil(totalCount / Number(limit));
+
+  return {
+    meta: {
+      page: Number(page),
+      limit: Number(limit),
+      totalPages,
+      total: totalCount,
+    },
+    data: networks,
+  };
+};
+
 const ReferralPartnerService = {
+  generateInvitationLink,
+  registerPartner,
   getNetworkStats,
   getReferralPartners,
   getSinglePartner,
@@ -576,6 +777,7 @@ const ReferralPartnerService = {
   changePartnerStatus,
   deletePartner,
   seedSamplePartners,
+  getMyNetworks
 };
 
 export default ReferralPartnerService;

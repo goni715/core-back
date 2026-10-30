@@ -12,31 +12,30 @@ import {
   updateAgentPatientValidationSchema,
   updateStatusValidationSchema,
 } from "./agentPatient.validation";
+import subAgentAuthMiddleware from "../../middlewares/subAgentAuthMIddleware";
 
 const router = express.Router();
 
 /* ==================== Create / Submit Patient ==================== */
 // Agent submits a new referred patient case
 router.post(
-  "/submit-patient",
+  "/submit-patient/by-agent",
   authMiddleware(USER_ROLES.AGENT),
   reportUpload.array("reports", 10),
   validationMiddleware(createAgentPatientValidationSchema),
-  AgentPatientController.createPatient,
+  AgentPatientController.submitPatientByAgent,
 );
 
 router.post(
-  "/create-patient",
-  authMiddleware(USER_ROLES.AGENT),
+  "/submit-patient/by-sub-agent",
+  subAgentAuthMiddleware(),
   reportUpload.array("reports", 10),
   validationMiddleware(createAgentPatientValidationSchema),
-  AgentPatientController.createPatient,
+  AgentPatientController.submitPatientBySubAgent,
 );
 
-/* ==================== Get Status Stats ==================== */
-// Get case count breakdown for tabs: all, submitted, under_review, confirmed, ongoing, completed, cancelled
 router.get(
-  "/stats",
+  "/status-stats/by-agent",
   authMiddleware(USER_ROLES.AGENT),
   AgentPatientController.getStatusStats,
 );
@@ -44,17 +43,17 @@ router.get(
 /* ==================== Get Patients List ==================== */
 // Agent sees their own submitted cases
 router.get(
-  "/get-patients",
+  "/all-patients/by-agent",
   authMiddleware(USER_ROLES.AGENT),
   validationMiddleware(getAgentPatientsValidationSchema),
-  AgentPatientController.getPatients,
+  AgentPatientController.getPatientsByAgent,
 );
 
 router.get(
-  "/",
-  authMiddleware(USER_ROLES.AGENT),
+  "/all-patients/by-sub-agent",
+  subAgentAuthMiddleware(),
   validationMiddleware(getAgentPatientsValidationSchema),
-  AgentPatientController.getPatients,
+  AgentPatientController.getPatientsBySubAgent,
 );
 
 /* ==================== Get Single Patient ==================== */

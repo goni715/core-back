@@ -141,6 +141,29 @@ const loginAdmin = asyncHandler(async (req, res) => {
   });
 });
 
+const loginSubAgent = asyncHandler(async (req: Request, res: Response) => {
+  const result = await AuthService.loginSubAgent(req.body);
+
+  const { refreshToken, accessToken, ...partnerData } = result;
+
+  res.cookie("refreshToken", refreshToken, {
+    secure: config.node_env === "production",
+    httpOnly: true,
+    sameSite: config.node_env === "production" ? "none" : "lax",
+  });
+
+  res.status(200).json({
+    success: true,
+    message: "Sub-Agent logged in successfully",
+    data: {
+      accessToken,
+      refreshToken,
+      ...partnerData,
+    },
+  });
+});
+
+
 //logout
 const logout = asyncHandler(async (req, res) => {
   const { sessionId } = req.headers;
@@ -349,6 +372,7 @@ const AuthController = {
   loginUser,
   loginAgent,
   loginAdmin,
+  loginSubAgent,
   logout,
   logoutAll,
   getAllSessions,

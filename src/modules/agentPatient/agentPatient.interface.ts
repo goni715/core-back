@@ -22,9 +22,8 @@ export interface IPatientTimeline {
 export interface IAgentPatient extends Document {
   caseId: string;
   agentUserId: Types.ObjectId;
-  partnerId?: string; // Optional Referral Partner ID (e.g. RP-0112)
+  subAgentId?: Types.ObjectId | null; // Optional Sub-Agent ObjectId
   fullName: string;
-  name?: string;
   phone: string;
   age: number;
   gender: TPatientGender;
@@ -40,7 +39,7 @@ export interface IAgentPatient extends Document {
 }
 
 export type TCreateAgentPatientPayload = {
-  partnerId?: string;
+  subAgentId?: Types.ObjectId | string | null;
   fullName: string;
   phone: string;
   age: number;
@@ -66,6 +65,8 @@ export type TAgentPatientQuery = {
   treatmentType?: string;
   gender?: TPatientGender;
   agentUserId?: string;
+  subAgentId?: string;
+  subAgent?: string;
   partnerId?: string;
   partner?: string;
   page?: string | number;

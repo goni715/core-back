@@ -1,4 +1,5 @@
 import { Schema, model } from "mongoose";
+import { hashedPassword } from "../../helpers/PasswordHelper";
 import {
   REFERRAL_PARTNER_STATUS,
   REFERRAL_PARTNER_STATUS_VALUES,
@@ -7,12 +8,10 @@ import { IReferralPartner } from "./referralPartner.interface";
 
 const referralPartnerSchema = new Schema<IReferralPartner>(
   {
-    partnerId: {
+    refCode: {
       type: String,
-      required: [true, "Partner ID is required"],
-      unique: true,
+      required: [true, "Ref code is required"],
       trim: true,
-      uppercase: true,
       index: true,
     },
     agentUserId: {
@@ -21,18 +20,15 @@ const referralPartnerSchema = new Schema<IReferralPartner>(
       required: [true, "agentUserId is required"],
       index: true,
     },
-    name: {
-      type: String,
-      required: [true, "Partner name is required"],
-      trim: true,
-      index: true,
-    },
     fullName: {
       type: String,
+      required: [true, "Full name is required"],
       trim: true,
-      default: function () {
-        return (this as any).name;
-      },
+    },
+    agencyName: {
+      type: String,
+      required: [true, "Agency name is required"],
+      trim: true,
     },
     email: {
       type: String,
@@ -43,15 +39,20 @@ const referralPartnerSchema = new Schema<IReferralPartner>(
     },
     phone: {
       type: String,
+      required: [true, "Phone is required"],
       trim: true,
-      default: "",
+    },
+    password: {
+      type: String,
+      required: [true, "Password is required"],
+      select: false,
     },
     initials: {
       type: String,
       trim: true,
       uppercase: true,
       default: function () {
-        const targetName = (this as any).name || (this as any).fullName || "";
+        const targetName = (this as any).fullName || "";
         const parts = targetName.trim().split(/\s+/);
         if (parts.length >= 2) {
           return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
@@ -120,19 +121,19 @@ const referralPartnerSchema = new Schema<IReferralPartner>(
   },
 );
 
-// Auto-fill initials & fullName before saving
-referralPartnerSchema.pre("save", function () {
-  if (!this.fullName && this.name) {
-    this.fullName = this.name;
+// Auto-fill initials & hash password before saving
+referralPartnerSchema.pre("save", async function () {
+  if (this.isModified("password") && this.password) {
+    this.password = await hashedPassword(this.password);
   }
-  if (!this.initials && this.name) {
-    const parts = this.name.trim().split(/\s+/);
+  if (!this.initials && this.fullName) {
+    const parts = this.fullName.trim().split(/\s+/);
     const firstWord = parts[0] || "";
     const lastWord = parts[parts.length - 1] || "";
     if (firstWord && lastWord && firstWord[0] && lastWord[0]) {
       this.initials = `${firstWord[0]}${lastWord[0]}`.toUpperCase();
     } else {
-      this.initials = (this.name.substring(0, 2) || "RP").toUpperCase();
+      this.initials = (this.fullName.substring(0, 2) || "RP").toUpperCase();
     }
   }
   if (this.status === REFERRAL_PARTNER_STATUS.ACTIVE && !this.joinedDate) {

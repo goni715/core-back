@@ -9,9 +9,9 @@ export const REFERRAL_PARTNER_STATUS_VALUES = Object.values(
 );
 
 export const REFERRAL_PARTNER_SEARCHABLE_FIELDS = [
-  "name",
   "fullName",
-  "partnerId",
+  "refCode",
+  "agencyName",
   "email",
   "phone",
 ];

@@ -3,11 +3,29 @@ import asyncHandler from "../../utils/asyncHandler";
 import AgentPatientService from "./agentPatient.service";
 
 /* ==================== Create Patient Case ==================== */
-const createPatient = asyncHandler(async (req: Request, res: Response) => {
+const submitPatientByAgent = asyncHandler(async (req: Request, res: Response) => {
   const { userId } = req.headers;
   const files = (req.files as Express.Multer.File[]) || (req.file ? [req.file] : []);
 
-  const result = await AgentPatientService.createPatient(
+  const result = await AgentPatientService.submitPatientByAgent(
+    userId as string,
+    req.body,
+    files,
+  );
+
+  res.status(201).json({
+    success: true,
+    message: "Patient case submitted successfully",
+    data: result,
+  });
+});
+
+/* ==================== Create Patient Case ==================== */
+const submitPatientBySubAgent = asyncHandler(async (req: Request, res: Response) => {
+  const { userId } = req.headers;
+  const files = (req.files as Express.Multer.File[]) || (req.file ? [req.file] : []);
+
+  const result = await AgentPatientService.submitPatientBySubAgent(
     userId as string,
     req.body,
     files,
@@ -21,11 +39,30 @@ const createPatient = asyncHandler(async (req: Request, res: Response) => {
 });
 
 /* ==================== Get Patients List ==================== */
-const getPatients = asyncHandler(async (req: Request, res: Response) => {
+const getPatientsByAgent = asyncHandler(async (req: Request, res: Response) => {
   const { userId } = req.headers;
   const validatedQuery = (req as any).validatedQuery || req.query;
 
-  const result = await AgentPatientService.getPatients(
+  const result = await AgentPatientService.getPatientsByAgent(
+    userId as string,
+    validatedQuery,
+  );
+
+  res.status(200).json({
+    success: true,
+    message: "Patient cases retrieved successfully",
+    meta: result.meta,
+    statusCounts: result.statusCounts,
+    data: result.data,
+  });
+});
+
+/* ==================== Get Patients List ==================== */
+const getPatientsBySubAgent = asyncHandler(async (req: Request, res: Response) => {
+  const { userId } = req.headers;
+  const validatedQuery = (req as any).validatedQuery || req.query;
+
+  const result = await AgentPatientService.getPatientsBySubAgent(
     userId as string,
     validatedQuery,
   );
@@ -127,8 +164,10 @@ const deletePatient = asyncHandler(async (req: Request, res: Response) => {
 });
 
 const AgentPatientController = {
-  createPatient,
-  getPatients,
+  submitPatientByAgent,
+  submitPatientBySubAgent,
+  getPatientsByAgent,
+  getPatientsBySubAgent,
   getStatusStats,
   getPatientById,
   updatePatient,

@@ -5,12 +5,13 @@ export type TReferralPartnerStatus =
   (typeof REFERRAL_PARTNER_STATUS)[keyof typeof REFERRAL_PARTNER_STATUS];
 
 export interface IReferralPartner extends Document {
-  partnerId: string; // e.g. "RP-0112"
+  refCode: string; // e.g. "CP-0112"
   agentUserId: Types.ObjectId; // The Channel Partner / Agent
-  name: string;
-  fullName?: string;
+  fullName: string;
   email: string;
-  phone?: string;
+  phone: string;
+  agencyName: string;
+  password: string;
   initials: string; // e.g. "NJ"
   joinedDate?: Date | null;
   cases: number; // total cases submitted by this referral partner
@@ -26,17 +27,31 @@ export interface IReferralPartner extends Document {
   updatedAt?: Date;
 }
 
+export type TRegisterReferralPartnerPayload = {
+  referralToken: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  agencyName: string;
+  password: string;
+};
+
 export type TInviteReferralPartnerPayload = {
-  name: string;
+  fullName: string;
+  name?: string;
   email: string;
   phone?: string;
+  agencyName?: string;
+  password?: string;
   notes?: string;
 };
 
 export type TCreateReferralPartnerPayload = {
-  name: string;
+  fullName: string;
   email: string;
-  phone?: string;
+  phone: string;
+  agencyName: string;
+  password: string;
   status?: TReferralPartnerStatus;
   joinedDate?: Date | null;
   cases?: number;
@@ -47,7 +62,9 @@ export type TCreateReferralPartnerPayload = {
 };
 
 export type TUpdateReferralPartnerPayload = Partial<{
+  fullName: string;
   name: string;
+  agencyName: string;
   email: string;
   phone: string;
   status: TReferralPartnerStatus;
@@ -72,6 +89,15 @@ export type TReferralPartnerQuery = {
   sortOrder?: "asc" | "desc";
 };
 
+export type TMyNetworksQuery = {
+  searchTerm?: string;
+  page?: string;
+  limit?: string;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc" | string;
+  status?: TReferralPartnerStatus | "all";
+};
+
 export type TReferralPartnerStatusCounts = {
   all: number;
   active: number;
@@ -89,14 +115,17 @@ export type TNetworkOverviewStats = {
 
 export type TReferralPartnerResponseItem = {
   _id: string;
+  refCode: string;
   partnerId: string;
   initials: string;
   name: string;
   fullName: string;
   email: string;
-  phone?: string;
+  phone?: string | undefined;
+  agencyName: string;
+  agentUserId?: string | undefined;
   joined: string; // formatted e.g. "Jan 2026" or "Invited"
-  joinedDate?: Date | null;
+  joinedDate?: Date | null | undefined;
   cases: number;
   ongoing: number;
   done: number;
@@ -104,7 +133,7 @@ export type TReferralPartnerResponseItem = {
   earningsAmount: number;
   status: TReferralPartnerStatus;
   statusBadge: string;
-  inviteLink?: string;
-  createdAt?: Date;
-  updatedAt?: Date;
+  inviteLink?: string | undefined;
+  createdAt?: Date | undefined;
+  updatedAt?: Date | undefined;
 };

@@ -6,7 +6,7 @@ export type TJwtExpiresIn = number | `${number}${"s" | "m" | "h" | "d"}`;
 type TJwtPayload = {
   userId: string;
   email: string;
-  role?: TUserRole;
+  role?: string;
   tokenVersion: number;
   sessionId?: string;
 };

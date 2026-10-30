@@ -42,6 +42,7 @@ import { AGENT_APPROVAL_STATUS } from "../agent/agent.constant";
 import uploadToCloudinary from "../../utils/uploadToCloudinary";
 import deleteFromCloudinary from "../../utils/deleteFromCloudinary";
 import { TAgentPayload } from "../agent/agent.interface";
+import ReferralPartnerModel from "../referralPartner/referralPartner.model";
 
 /*============ register patient (With OTP) ============*/
 const registerPatient = async (payload: IUser) => {
@@ -682,7 +683,7 @@ const registerAgent = async (payload: TAgentPayload) => {
 
 
     // Create Agent profile (approvalStatus: pending, status: active)
-     await AgentModel.create(
+    await AgentModel.create(
       [
         {
           userId: newUser?.[0]?._id!,
@@ -1243,6 +1244,54 @@ const loginAdmin = async (payload: ILogin, ip: string) => {
   }
 };
 
+/* ==================== Login Sub-Agent ==================== */
+const loginSubAgent = async (payload: ILogin) => {
+  const { email, password } = payload;
+  const normalizedEmail = email.trim().toLowerCase();
+
+  const partner = await ReferralPartnerModel.findOne({
+    email: normalizedEmail,
+  }).select("+password");
+
+  if (!partner) {
+    throw new NotFoundError("Sub-Agent partner account not found with this email");
+  }
+
+  const isMatch = await checkPassword(password, partner.password);
+  if (!isMatch) {
+    throw new BadRequestError("Invalid email or password");
+  }
+
+  const jwtPayload = {
+    userId: String(partner._id),
+    email: partner.email,
+    role: "sub_agent",
+    tokenVersion: 1,
+  };
+
+  const accessToken = createToken(
+    jwtPayload,
+    config.jwt.jwt_access_secret as Secret,
+    config.jwt.jwt_access_expires_in as TJwtExpiresIn,
+  );
+
+  const refreshToken = createToken(
+    jwtPayload,
+    config.jwt.jwt_refresh_secret as Secret,
+    config.jwt.jwt_refresh_expires_in as TJwtExpiresIn,
+  );
+
+  return {
+    accessToken,
+    refreshToken,
+    _id: partner._id,
+    fullName: partner.fullName,
+    email: partner.email,
+    phone: partner.phone,
+  };
+};
+
+
 /*=========== logout ========== */
 const logout = async (sessionId: string) => {
   //update session
@@ -1762,6 +1811,7 @@ const AuthService = {
   loginUser,
   loginAgent,
   loginAdmin,
+  loginSubAgent,
   logout,
   logoutFromAll,
   getAllSessions,

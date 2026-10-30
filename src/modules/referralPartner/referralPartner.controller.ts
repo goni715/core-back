@@ -2,6 +2,32 @@ import { Request, Response } from "express";
 import asyncHandler from "../../utils/asyncHandler";
 import ReferralPartnerService from "./referralPartner.service";
 
+/* ==================== Generate Invitation Link ==================== */
+const generateInvitationLink = asyncHandler(async (req: Request, res: Response) => {
+  const { userId } = req.headers;
+
+  const result = await ReferralPartnerService.generateInvitationLink(
+    userId as string,
+  );
+
+  res.status(201).json({
+    success: true,
+    message: "Referral partner invitation link generated successfully",
+    data: result,
+  });
+});
+
+/* ==================== Register Referral Partner (Self Registration) ==================== */
+const registerPartner = asyncHandler(async (req: Request, res: Response) => {
+  const result = await ReferralPartnerService.registerPartner(req.body);
+
+  res.status(201).json({
+    success: true,
+    message: "Referral partner registered successfully",
+    data: result,
+  });
+});
+
 /* ==================== Get Network Overview Stats ==================== */
 const getNetworkStats = asyncHandler(async (req: Request, res: Response) => {
   const { userId } = req.headers;
@@ -11,8 +37,6 @@ const getNetworkStats = asyncHandler(async (req: Request, res: Response) => {
   res.status(200).json({
     success: true,
     message: "Network overview statistics retrieved successfully",
-    overviewStats: result.overviewStats,
-    statusCounts: result.statusCounts,
     data: result,
   });
 });
@@ -159,7 +183,24 @@ const seedSamplePartners = asyncHandler(
   },
 );
 
+const getMyNetworks = asyncHandler(async (req: Request, res: Response) => {
+  const userId = (req as any).user?.userId || (req.headers.userId as string);
+  const validatedQuery = (req as any).validatedQuery || req.query;
+  const result = await ReferralPartnerService.getMyNetworks(
+    userId as string,
+    validatedQuery,
+  );
+  res.status(200).json({
+    success: true,
+    message: "My networks are retrieved successfully",
+    meta: result.meta,
+    data: result.data,
+  });
+});
+
 const ReferralPartnerController = {
+  generateInvitationLink,
+  registerPartner,
   getNetworkStats,
   getReferralPartners,
   getSinglePartner,
@@ -169,6 +210,7 @@ const ReferralPartnerController = {
   changePartnerStatus,
   deletePartner,
   seedSamplePartners,
+  getMyNetworks
 };
 
 export default ReferralPartnerController;

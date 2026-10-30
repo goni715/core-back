@@ -10,6 +10,14 @@ import objectIdSchema from "../../schemas/objectId.schema";
 
 export const patientIdZodSchema = objectIdSchema('patientId');
 
+const optionalObjectIdSchema = (name: string) =>
+  z
+    .preprocess(
+      (val) => (val === "" || val === null ? undefined : val),
+      objectIdSchema(name).optional(),
+    )
+    .optional();
+
 const ageZodSchema = z.preprocess(
   (val) => (val !== undefined && val !== null && val !== "" ? Number(val) : val),
   z
@@ -27,7 +35,7 @@ const ageZodSchema = z.preprocess(
 export const createAgentPatientValidationSchema = z.object({
   body: z
     .object({
-      partnerId: z.string().trim().optional(),
+      subAgentId: optionalObjectIdSchema("subAgentId"),
       fullName: requiredStringSchema("fullName"),
       phone: phoneNumberZodSchema,
       age: ageZodSchema,
@@ -45,6 +53,7 @@ export const updateAgentPatientValidationSchema = z.object({
   }),
   body: z
     .object({
+      subAgentId: optionalObjectIdSchema("subAgentId"),
       fullName: requiredStringSchema("fullName").optional(),
       phone: phoneNumberZodSchema.optional(),
       age: ageZodSchema.optional(),
@@ -90,8 +99,8 @@ export const getAgentPatientsValidationSchema = z.object({
     sortOrder: z.enum(["asc", "desc"]).optional(),
     gender: z.string().optional(),
     preferredCountry: z.string().optional(),
-    partnerId: z.string().optional(),
-    partner: z.string().optional(),
+    subAgentId: z.string().optional(),
+    subAgent: z.string().optional(),
     status: enumSchema("status", PATIENT_CASE_STATUS_VALUES).optional(),
   }),
 });

@@ -6,9 +6,11 @@ import ReferralPartnerController from "./referralPartner.controller";
 import {
   changePartnerStatusValidationSchema,
   deleteReferralPartnerValidationSchema,
+  getMyNetworksValidationSchema,
   getReferralPartnersValidationSchema,
   getSingleReferralPartnerValidationSchema,
   inviteReferralPartnerValidationSchema,
+  registerReferralPartnerValidationSchema,
   updateReferralPartnerValidationSchema,
 } from "./referralPartner.validation";
 
@@ -20,11 +22,25 @@ const allowedRoles = [
   USER_ROLES.ADMIN,
 ];
 
+/* ==================== Register Partner (Public / Self-Registration) ==================== */
+router.post(
+  "/register",
+  validationMiddleware(registerReferralPartnerValidationSchema),
+  ReferralPartnerController.registerPartner,
+);
+
+
+router.post(
+  "/generate-link",
+  authMiddleware(USER_ROLES.AGENT),
+  ReferralPartnerController.generateInvitationLink,
+);
+
 /* ==================== Network Stats ==================== */
 // Overview stats cards: Referral partners, Active this month, Cases in network, Network earnings & tabs
 router.get(
   "/stats",
-  authMiddleware(...allowedRoles),
+  authMiddleware(USER_ROLES.AGENT),
   ReferralPartnerController.getNetworkStats,
 );
 
@@ -67,6 +83,14 @@ router.get(
   authMiddleware(...allowedRoles),
   validationMiddleware(getReferralPartnersValidationSchema),
   ReferralPartnerController.getReferralPartners,
+);
+
+/* ==================== Get Agent's Networks ==================== */
+router.get(
+  "/my-networks",
+  authMiddleware(USER_ROLES.AGENT),
+  validationMiddleware(getMyNetworksValidationSchema),
+  ReferralPartnerController.getMyNetworks,
 );
 
 router.get(

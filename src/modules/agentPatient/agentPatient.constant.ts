@@ -20,7 +20,6 @@ export const PATIENT_GENDER_VALUES = Object.values(PATIENT_GENDER);
 export const AGENT_PATIENT_SEARCHABLE_FIELDS = [
   "caseId",
   "fullName",
-  "name",
   "phone",
   "treatmentType",
   "preferredCountry",

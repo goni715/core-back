@@ -42,6 +42,7 @@ const envSchema = z.object({
   CLOUD_NAME: z.string(),
   CLOUD_API_KEY: z.string(),
   CLOUD_API_SECRET_KEY: z.string(),
+  FRONT_END_URL: z.string(),
 });
 
 // Validate process.env against schema
@@ -104,4 +105,5 @@ export default {
     cloud_api_key: env.CLOUD_API_KEY,
     cloud_api_secret_key: env.CLOUD_API_SECRET_KEY,
   },
+  frontEndUrl: env.FRONT_END_URL,
 };

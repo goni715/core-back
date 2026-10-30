@@ -76,6 +76,13 @@ router.post(
 );
 
 router.post(
+  "/login-sub-agent",
+  authRateLimiter,
+  validationMiddleware(loginValidationSchema),
+  AuthController.loginSubAgent,
+);
+
+router.post(
   "/logout",
   AuthMiddleware(USER_ROLES.PATIENT, USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN, USER_ROLES.DOCTOR, USER_ROLES.AGENT),
   AuthController.logout,

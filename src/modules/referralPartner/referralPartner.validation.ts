@@ -2,7 +2,7 @@ import z from "zod";
 import { enumSchema } from "../../schemas/enum.schema";
 import { requiredStringSchema } from "../../schemas/required.schema";
 import { REFERRAL_PARTNER_STATUS_VALUES } from "./referralPartner.constant";
-import { emailZodSchema, phoneRegex } from "../auth/auth.validation";
+import { emailZodSchema, passwordZodSchema, phoneRegex } from "../auth/auth.validation";
 
 // Accepts MongoDB ObjectId OR Partner ID (e.g. RP-0112)
 export const partnerIdentifierSchema = z.string({
@@ -20,14 +20,38 @@ const optionalPhoneSchema = z
   })
   .optional();
 
+const phoneSchema = requiredStringSchema("phone").regex(phoneRegex, {
+  message:
+    "Please enter a valid phone number (e.g., +1234567890 or 01766666666)",
+});
+
+/* ==================== Register Referral Partner (Self Registration) ==================== */
+export const registerReferralPartnerValidationSchema = z.object({
+  body: z.object({
+    referralToken: requiredStringSchema("referralToken"),
+    fullName: requiredStringSchema("fullName"),
+    email: emailZodSchema,
+    phone: phoneSchema,
+    agencyName: requiredStringSchema("agencyName"),
+    password: passwordZodSchema,
+  }),
+});
+
 /* ==================== Invite Referral Partner ==================== */
 export const inviteReferralPartnerValidationSchema = z.object({
-  body: z.object({
-    name: requiredStringSchema("name"),
-    email: emailZodSchema,
-    phone: optionalPhoneSchema,
-    notes: z.string().trim().optional(),
-  }),
+  body: z
+    .object({
+      fullName: requiredStringSchema("fullName").optional(),
+      name: z.string().trim().optional(),
+      agencyName: z.string().trim().optional(),
+      email: emailZodSchema,
+      phone: optionalPhoneSchema,
+      notes: z.string().trim().optional(),
+    })
+    .refine((data) => Boolean(data.fullName || data.name), {
+      message: "fullName is required",
+      path: ["fullName"],
+    }),
 });
 
 /* ==================== Update Referral Partner ==================== */
@@ -37,7 +61,9 @@ export const updateReferralPartnerValidationSchema = z.object({
   }),
   body: z
     .object({
-      name: requiredStringSchema("name").optional(),
+      fullName: requiredStringSchema("fullName").optional(),
+      name: z.string().trim().optional(),
+      agencyName: z.string().trim().optional(),
       email: emailZodSchema.optional(),
       phone: optionalPhoneSchema,
       status: enumSchema("status", REFERRAL_PARTNER_STATUS_VALUES).optional(),
@@ -86,5 +112,17 @@ export const getReferralPartnersValidationSchema = z.object({
     sortBy: z.string().optional(),
     sortOrder: z.enum(["asc", "desc"]).optional(),
     status: z.string().optional(),
+  }),
+});
+
+
+export const getMyNetworksValidationSchema = z.object({
+  query: z.object({
+    searchTerm: z.string().optional(),
+    page: z.string().optional(),
+    limit: z.string().optional(),
+    sortOrder: z.string().optional(),
+    sortBy: z.string().optional(),
+    status: enumSchema("status", REFERRAL_PARTNER_STATUS_VALUES).optional(),
   }),
 });
