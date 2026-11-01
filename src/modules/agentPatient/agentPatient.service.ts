@@ -8,17 +8,22 @@ import uploadToCloudinary from "../../utils/uploadToCloudinary";
 import deleteFromCloudinary from "../../utils/deleteFromCloudinary";
 import {
   AGENT_PATIENT_SEARCHABLE_FIELDS,
+  COMMISSION_PAYMENT_STATUS,
   PATIENT_CASE_STATUS,
 } from "./agentPatient.constant";
 import {
   TAgentPatientQuery,
+  TCommissionPaymentStatus,
   TCreateAgentPatientPayload,
   TPatientCaseStatus,
   TPatientStatusCounts,
+  TUpdateAgentCommissionPayload,
   TUpdateAgentPatientPayload,
+  TUpdateSubAgentCommissionPayload,
 } from "./agentPatient.interface";
 import AgentPatientModel from "./agentPatient.model";
 import ReferralPartnerModel from "../referralPartner/referralPartner.model";
+import UserModel from "../user/user.model";
 
 /* ==================== Create Patient Case By Agent ==================== */
 const submitPatientByAgent = async (
@@ -213,6 +218,10 @@ const getPatientsByAgent = async (
         caseId: 1,
         agentUserId: 1,
         subAgentId: 1,
+        agentCommissionFee: 1,
+        agentPaymentStatus: 1,
+        subAgentCommission: 1,
+        subAgentPaymentStatus: 1,
         subAgent: {
           $cond: {
             if: "$subAgent",
@@ -391,6 +400,11 @@ const getPatientsBySubAgent = async (
         _id: 1,
         caseId: 1,
         agentUserId: 1,
+        subAgentId: 1,
+        agentCommissionFee: 1,
+        agentPaymentStatus: 1,
+        subAgentCommission: 1,
+        subAgentPaymentStatus: 1,
         agent: {
           $cond: {
             if: "$agent",
@@ -485,6 +499,230 @@ const getPatientsBySubAgent = async (
   };
 };
 
+/* ==================== Get All Patients By Admin ==================== */
+const getAllPatientsByAdmin = async (query: TAgentPatientQuery) => {
+  const {
+    searchTerm,
+    status,
+    preferredCountry,
+    country,
+    treatmentType,
+    gender,
+    agentUserId,
+    subAgentId,
+    page = 1,
+    limit = 10,
+    sortBy = "createdAt",
+    sortOrder = "desc",
+  } = query;
+
+  const skip = (Number(page) - 1) * Number(limit);
+  const sortDirection = sortOrder === "asc" ? 1 : -1;
+
+  // Search query
+  let searchQuery: Record<string, unknown> = {};
+  if (searchTerm) {
+    searchQuery = makeSearchQuery(searchTerm, AGENT_PATIENT_SEARCHABLE_FIELDS);
+  }
+
+  // Attribute filters
+  const additionalFilters: Record<string, unknown> = {};
+  if (status && status !== "all") {
+    additionalFilters.status = status;
+  }
+  const countryFilter = preferredCountry || country;
+  if (countryFilter && countryFilter !== "all") {
+    additionalFilters.preferredCountry = {
+      $regex: countryFilter,
+      $options: "i",
+    };
+  }
+  if (treatmentType && treatmentType !== "all") {
+    additionalFilters.treatmentType = {
+      $regex: treatmentType,
+      $options: "i",
+    };
+  }
+  if (gender && (gender as string) !== "all") {
+    additionalFilters.gender = String(gender).toLowerCase();
+  }
+  if (agentUserId && agentUserId !== "all" && isObjectId(agentUserId)) {
+    additionalFilters.agentUserId = new Types.ObjectId(agentUserId);
+  }
+  const subAgentFilter =
+    subAgentId || query.subAgent || query.partnerId || query.partner;
+  if (subAgentFilter && subAgentFilter !== "all" && isObjectId(subAgentFilter)) {
+    additionalFilters.subAgentId = new Types.ObjectId(subAgentFilter);
+  }
+  if (query.agentPaymentStatus && query.agentPaymentStatus !== "all") {
+    additionalFilters.agentPaymentStatus = query.agentPaymentStatus;
+  }
+  if (query.subAgentPaymentStatus && query.subAgentPaymentStatus !== "all") {
+    additionalFilters.subAgentPaymentStatus = query.subAgentPaymentStatus;
+  }
+
+  const matchStage = {
+    ...searchQuery,
+    ...additionalFilters,
+  };
+
+  // Aggregation pipeline for data retrieval with both agent and subAgent lookups
+  const pipeline: PipelineStage[] = [
+    { $match: matchStage },
+    {
+      $lookup: {
+        from: "users",
+        localField: "agentUserId",
+        foreignField: "_id",
+        as: "agent",
+      },
+    },
+    {
+      $unwind: {
+        path: "$agent",
+        preserveNullAndEmptyArrays: true,
+      },
+    },
+    {
+      $lookup: {
+        from: "referralpartners",
+        localField: "subAgentId",
+        foreignField: "_id",
+        as: "subAgent",
+      },
+    },
+    {
+      $unwind: {
+        path: "$subAgent",
+        preserveNullAndEmptyArrays: true,
+      },
+    },
+    {
+      $project: {
+        _id: 1,
+        caseId: 1,
+        agentUserId: 1,
+        subAgentId: 1,
+        agentCommissionFee: 1,
+        agentPaymentStatus: 1,
+        subAgentCommission: 1,
+        subAgentPaymentStatus: 1,
+        agent: {
+          $cond: {
+            if: "$agent",
+            then: {
+              _id: "$agent._id",
+              fullName: "$agent.fullName",
+              email: "$agent.email",
+              phone: "$agent.phone",
+              profileImg: "$agent.profileImg",
+              agencyName: "$agent.agencyName",
+            },
+            else: null,
+          },
+        },
+        subAgent: {
+          $cond: {
+            if: "$subAgent",
+            then: {
+              _id: "$subAgent._id",
+              refCode: "$subAgent.refCode",
+              fullName: "$subAgent.fullName",
+              email: "$subAgent.email",
+              phone: "$subAgent.phone",
+              agencyName: "$subAgent.agencyName",
+            },
+            else: null,
+          },
+        },
+        fullName: 1,
+        phone: 1,
+        age: 1,
+        gender: 1,
+        treatmentType: 1,
+        symptoms: 1,
+        preferredCountry: 1,
+        budgetRange: 1,
+        reports: 1,
+        status: 1,
+        timeline: 1,
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    },
+    { $sort: { [sortBy]: sortDirection } },
+    { $skip: skip },
+    { $limit: Number(limit) },
+  ];
+
+  const data = await AgentPatientModel.aggregate(pipeline).collation({
+    locale: "en",
+    strength: 2,
+  });
+
+  // Total matching count
+  const totalCountResult = await AgentPatientModel.countDocuments(matchStage);
+
+  // Status breakdown counts (for UI tabs)
+  const statusCountFilter: Record<string, unknown> = {};
+  if (searchTerm) {
+    Object.assign(statusCountFilter, searchQuery);
+  }
+  if (countryFilter && countryFilter !== "all") {
+    statusCountFilter.preferredCountry = {
+      $regex: countryFilter,
+      $options: "i",
+    };
+  }
+  if (agentUserId && agentUserId !== "all" && isObjectId(agentUserId)) {
+    statusCountFilter.agentUserId = new Types.ObjectId(agentUserId);
+  }
+  if (subAgentFilter && subAgentFilter !== "all" && isObjectId(subAgentFilter)) {
+    statusCountFilter.subAgentId = new Types.ObjectId(subAgentFilter);
+  }
+
+  const countsAggregation = await AgentPatientModel.aggregate([
+    { $match: statusCountFilter },
+    {
+      $group: {
+        _id: "$status",
+        count: { $sum: 1 },
+      },
+    },
+  ]);
+
+  const statusCounts: TPatientStatusCounts = {
+    all: 0,
+    submitted: 0,
+    under_review: 0,
+    confirmed: 0,
+    ongoing: 0,
+    completed: 0,
+    cancelled: 0,
+  };
+
+  countsAggregation.forEach((item) => {
+    const key = item._id as keyof Omit<TPatientStatusCounts, "all">;
+    if (key && statusCounts[key] !== undefined) {
+      statusCounts[key] = item.count;
+    }
+    statusCounts.all += item.count;
+  });
+
+  const totalPages = Math.ceil(totalCountResult / Number(limit)) || 1;
+
+  return {
+    meta: {
+      page: Number(page),
+      limit: Number(limit),
+      totalPages,
+      total: totalCountResult,
+    },
+    statusCounts,
+    data,
+  };
+};
+
 /* ==================== Get Status Stats ==================== */
 const getStatusStats = async (agentUserId: string) => {
   const scopeFilter: Record<string, unknown> = {
@@ -520,6 +758,348 @@ const getStatusStats = async (agentUserId: string) => {
   });
 
   return statusCounts;
+};
+
+/* ==================== Get Agent Commission Stats & 12 Months Chart ==================== */
+const getAgentCommissionStats = async (
+  agentUserId?: string,
+  query?: { year?: string | number },
+) => {
+  const currentYear = query?.year
+    ? Number(query.year)
+    : new Date().getFullYear();
+
+  // Match only agentPatients that actually generate agent commission
+  const matchQuery: Record<string, unknown> = {
+    agentCommissionFee: { $gt: 0 },
+  };
+
+  if (agentUserId) {
+    if (isObjectId(agentUserId)) {
+      matchQuery.agentUserId = new Types.ObjectId(agentUserId);
+    } else {
+      matchQuery.agentUserId = agentUserId;
+    }
+  }
+
+  // 1. Overview cards: Total Commission, Pending, Paid & Total Patients count
+  const statsAggregation = await AgentPatientModel.aggregate([
+    {
+      $match: matchQuery,
+    },
+    {
+      $group: {
+        _id: null,
+        totalCommission: { $sum: "$agentCommissionFee" },
+        pendingCommission: {
+          $sum: {
+            $cond: [
+              {
+                $eq: [
+                  "$agentPaymentStatus",
+                  COMMISSION_PAYMENT_STATUS.PENDING,
+                ],
+              },
+              "$agentCommissionFee",
+              0,
+            ],
+          },
+        },
+        paidCommission: {
+          $sum: {
+            $cond: [
+              { $eq: ["$agentPaymentStatus", COMMISSION_PAYMENT_STATUS.PAID] },
+              "$agentCommissionFee",
+              0,
+            ],
+          },
+        },
+        totalPatients: { $sum: 1 },
+      },
+    },
+  ]);
+
+  const overview = statsAggregation[0] || {
+    totalCommission: 0,
+    pendingCommission: 0,
+    paidCommission: 0,
+    totalPatients: 0,
+  };
+
+  // 2. 12 Months Chart Data (Monthly Earnings based on the contributing agentPatients)
+  const startOfYear = new Date(`${currentYear}-01-01T00:00:00.000Z`);
+  const endOfYear = new Date(`${currentYear}-12-31T23:59:59.999Z`);
+
+  const monthlyAggregation = await AgentPatientModel.aggregate([
+    {
+      $addFields: {
+        effectiveDate: {
+          $ifNull: [
+            "$timeline.completedAt",
+            { $ifNull: ["$updatedAt", "$createdAt"] },
+          ],
+        },
+      },
+    },
+    {
+      $match: {
+        ...matchQuery,
+        effectiveDate: { $gte: startOfYear, $lte: endOfYear },
+      },
+    },
+    {
+      $group: {
+        _id: { $month: "$effectiveDate" },
+        earnings: { $sum: "$agentCommissionFee" },
+      },
+    },
+    {
+      $sort: { _id: 1 },
+    },
+  ]);
+
+  const monthNames = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ];
+
+  const monthlyMap: Record<number, number> = {};
+  monthlyAggregation.forEach((item) => {
+    monthlyMap[item._id] = item.earnings;
+  });
+
+  const monthlyEarnings = monthNames.map((name, index) => {
+    const monthNumber = index + 1;
+    const earnings = monthlyMap[monthNumber] || 0;
+    return {
+      month: name,
+      earnings,
+      commission: earnings,
+    };
+  });
+
+  // 3. List of agentPatients from which commission is received
+  const commissionPatients = await AgentPatientModel.find(matchQuery)
+    .populate("subAgentId", "_id refCode fullName agencyName email phone")
+    .sort({ createdAt: -1 })
+    .lean();
+
+  const patients = commissionPatients.map((patient) => ({
+    _id: patient._id,
+    caseId: patient.caseId,
+    fullName: patient.fullName,
+    patientName: patient.fullName,
+    phone: patient.phone,
+    treatmentType: patient.treatmentType,
+    preferredCountry: patient.preferredCountry,
+    commissionFee: patient.agentCommissionFee || 0,
+    paymentStatus:
+      patient.agentPaymentStatus || COMMISSION_PAYMENT_STATUS.UNPAID,
+    status: patient.status,
+    completedAt: patient.timeline?.completedAt || null,
+    date: patient.timeline?.completedAt || patient.createdAt,
+    subAgent: patient.subAgentId,
+  }));
+
+  return {
+    totalCommission: overview.totalCommission,
+    pendingCommission: overview.pendingCommission,
+    paidCommission: overview.paidCommission,
+    pending: overview.pendingCommission,
+    paid: overview.paidCommission,
+    totalPatients: overview.totalPatients || patients.length,
+    monthlyEarnings,
+    patients,
+  };
+};
+
+/* ==================== Get Sub-Agent Commission Stats & 12 Months Chart ==================== */
+const getSubAgentCommissionStats = async (
+  subAgentId?: string,
+  query?: { year?: string | number },
+) => {
+  const currentYear = query?.year
+    ? Number(query.year)
+    : new Date().getFullYear();
+
+  // Match only agentPatients that actually generate sub-agent commission
+  const matchQuery: Record<string, unknown> = {
+    subAgentCommission: { $gt: 0 },
+  };
+
+  if (subAgentId) {
+    if (isObjectId(subAgentId)) {
+      matchQuery.subAgentId = new Types.ObjectId(subAgentId);
+    } else {
+      // Handle refCode (e.g. RP-0112) or email
+      const partner = await ReferralPartnerModel.findOne({
+        $or: [
+          { refCode: String(subAgentId).trim().toUpperCase() },
+          { email: String(subAgentId).trim().toLowerCase() },
+        ],
+      });
+      if (partner) {
+        matchQuery.subAgentId = partner._id;
+      } else {
+        matchQuery.subAgentId = subAgentId;
+      }
+    }
+  }
+
+  // 1. Overview cards: Total Commission, Pending, Paid & Total Patients count
+  const statsAggregation = await AgentPatientModel.aggregate([
+    {
+      $match: matchQuery,
+    },
+    {
+      $group: {
+        _id: null,
+        totalCommission: { $sum: "$subAgentCommission" },
+        pendingCommission: {
+          $sum: {
+            $cond: [
+              {
+                $eq: [
+                  "$subAgentPaymentStatus",
+                  COMMISSION_PAYMENT_STATUS.PENDING,
+                ],
+              },
+              "$subAgentCommission",
+              0,
+            ],
+          },
+        },
+        paidCommission: {
+          $sum: {
+            $cond: [
+              {
+                $eq: [
+                  "$subAgentPaymentStatus",
+                  COMMISSION_PAYMENT_STATUS.PAID,
+                ],
+              },
+              "$subAgentCommission",
+              0,
+            ],
+          },
+        },
+        totalPatients: { $sum: 1 },
+      },
+    },
+  ]);
+
+  const overview = statsAggregation[0] || {
+    totalCommission: 0,
+    pendingCommission: 0,
+    paidCommission: 0,
+    totalPatients: 0,
+  };
+
+  // 2. 12 Months Chart Data (Monthly Earnings based on the contributing agentPatients)
+  const startOfYear = new Date(`${currentYear}-01-01T00:00:00.000Z`);
+  const endOfYear = new Date(`${currentYear}-12-31T23:59:59.999Z`);
+
+  const monthlyAggregation = await AgentPatientModel.aggregate([
+    {
+      $addFields: {
+        effectiveDate: {
+          $ifNull: [
+            "$timeline.completedAt",
+            { $ifNull: ["$updatedAt", "$createdAt"] },
+          ],
+        },
+      },
+    },
+    {
+      $match: {
+        ...matchQuery,
+        effectiveDate: { $gte: startOfYear, $lte: endOfYear },
+      },
+    },
+    {
+      $group: {
+        _id: { $month: "$effectiveDate" },
+        earnings: { $sum: "$subAgentCommission" },
+      },
+    },
+    {
+      $sort: { _id: 1 },
+    },
+  ]);
+
+  const monthNames = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ];
+
+  const monthlyMap: Record<number, number> = {};
+  monthlyAggregation.forEach((item) => {
+    monthlyMap[item._id] = item.earnings;
+  });
+
+  const monthlyEarnings = monthNames.map((name, index) => {
+    const monthNumber = index + 1;
+    const earnings = monthlyMap[monthNumber] || 0;
+    return {
+      month: name,
+      earnings,
+      commission: earnings,
+    };
+  });
+
+  // 3. List of agentPatients from which commission is received
+  const commissionPatients = await AgentPatientModel.find(matchQuery)
+    .populate("agentUserId", "_id fullName agencyName email phone")
+    .sort({ createdAt: -1 })
+    .lean();
+
+  const patients = commissionPatients.map((patient) => ({
+    _id: patient._id,
+    caseId: patient.caseId,
+    fullName: patient.fullName,
+    patientName: patient.fullName,
+    phone: patient.phone,
+    treatmentType: patient.treatmentType,
+    preferredCountry: patient.preferredCountry,
+    commissionFee: patient.subAgentCommission || 0,
+    paymentStatus:
+      patient.subAgentPaymentStatus || COMMISSION_PAYMENT_STATUS.UNPAID,
+    status: patient.status,
+    completedAt: patient.timeline?.completedAt || null,
+    date: patient.timeline?.completedAt || patient.createdAt,
+    agent: patient.agentUserId,
+  }));
+
+  return {
+    totalCommission: overview.totalCommission,
+    pendingCommission: overview.pendingCommission,
+    paidCommission: overview.paidCommission,
+    pending: overview.pendingCommission,
+    paid: overview.paidCommission,
+    totalPatients: overview.totalPatients || patients.length,
+    monthlyEarnings,
+    patients,
+  };
 };
 
 /* ==================== Get Single Patient Case ==================== */
@@ -668,16 +1248,216 @@ const deletePatient = async (
   return null;
 };
 
+/* ==================== Update Agent Commission ==================== */
+const updateAgentCommission = async (
+  patientId: string,
+  payload: TUpdateAgentCommissionPayload,
+) => {
+  const query = isObjectId(patientId)
+    ? { _id: new Types.ObjectId(patientId) }
+    : { caseId: patientId };
+
+  const patient = await AgentPatientModel.findOne(query);
+  if (!patient) {
+    throw new NotFoundError("Patient case not found");
+  }
+
+  // Commission can only be updated when patient case status is completed
+  if (patient.status !== PATIENT_CASE_STATUS.COMPLETED) {
+    throw new BadRequestError(
+      `Commission can only be updated when patient case status is '${PATIENT_CASE_STATUS.COMPLETED}'. Current status is '${patient.status}'.`,
+    );
+  }
+
+  // If agentUserId is provided, verify it matches patient's assigned agentUserId
+  if (payload.agentUserId) {
+    if (!isObjectId(payload.agentUserId)) {
+      throw new BadRequestError("Invalid agentUserId");
+    }
+    if (patient.agentUserId.toString() !== payload.agentUserId.toString()) {
+      throw new BadRequestError(
+        "Provided agentUserId does not match the patient's assigned agent",
+      );
+    }
+  }
+
+  // Ensure the agent user exists in user database
+  const agentUser = await UserModel.findById(patient.agentUserId);
+  if (!agentUser) {
+    throw new NotFoundError("Assigned agent user account not found");
+  }
+
+  const requestedPaymentStatus =
+    payload.paymentStatus || payload.agentPaymentStatus;
+
+  // 1. If agentCommissionFee is being updated
+  if (payload.agentCommissionFee !== undefined) {
+    const newFee = Number(payload.agentCommissionFee);
+    const previousFee = patient.agentCommissionFee || 0;
+    patient.agentCommissionFee = newFee;
+
+    // Rule: commission 0 thek update korle, paymentStatus hobe pending
+    if (previousFee === 0 && newFee > 0 && !requestedPaymentStatus) {
+      patient.agentPaymentStatus = COMMISSION_PAYMENT_STATUS.PENDING;
+    } else if (
+      patient.agentPaymentStatus === COMMISSION_PAYMENT_STATUS.UNPAID &&
+      newFee > 0 &&
+      !requestedPaymentStatus
+    ) {
+      patient.agentPaymentStatus = COMMISSION_PAYMENT_STATUS.PENDING;
+    } else if (newFee === 0 && !requestedPaymentStatus) {
+      patient.agentPaymentStatus = COMMISSION_PAYMENT_STATUS.UNPAID;
+    }
+  }
+
+  // 2. If paymentStatus is explicitly provided
+  if (requestedPaymentStatus) {
+    // Cannot mark as paid when commission is 0
+    if (
+      requestedPaymentStatus === COMMISSION_PAYMENT_STATUS.PAID &&
+      patient.agentCommissionFee <= 0
+    ) {
+      throw new BadRequestError(
+        "Cannot change payment status to 'paid' when agent commission fee is 0. Please set a commission fee first.",
+      );
+    }
+    patient.agentPaymentStatus = requestedPaymentStatus;
+  }
+
+  await patient.save();
+
+  const updatedPatient = await AgentPatientModel.findById(patient._id)
+    .populate("agentUserId", "_id fullName email phone")
+    .populate("subAgentId", "_id refCode fullName email phone agencyName");
+
+  return updatedPatient;
+};
+
+/* ==================== Update Sub-Agent Commission ==================== */
+const updateSubAgentCommission = async (
+  patientId: string,
+  payload: TUpdateSubAgentCommissionPayload,
+) => {
+  const query = isObjectId(patientId)
+    ? { _id: new Types.ObjectId(patientId) }
+    : { caseId: patientId };
+
+  const patient = await AgentPatientModel.findOne(query);
+  if (!patient) {
+    throw new NotFoundError("Patient case not found");
+  }
+
+  // Commission can only be updated when patient case status is completed
+  if (patient.status !== PATIENT_CASE_STATUS.COMPLETED) {
+    throw new BadRequestError(
+      `Commission can only be updated when patient case status is '${PATIENT_CASE_STATUS.COMPLETED}'. Current status is '${patient.status}'.`,
+    );
+  }
+
+  // Check if patient case actually has a subAgentId assigned
+  if (!patient.subAgentId) {
+    throw new BadRequestError(
+      "This patient case does not have an assigned sub-agent / referral partner",
+    );
+  }
+
+  // If subAgentId is provided, verify it matches patient's assigned subAgentId
+  if (payload.subAgentId) {
+    if (!isObjectId(payload.subAgentId)) {
+      throw new BadRequestError("Invalid subAgentId");
+    }
+    if (patient.subAgentId.toString() !== payload.subAgentId.toString()) {
+      throw new BadRequestError(
+        "Provided subAgentId does not match the patient's assigned sub-agent",
+      );
+    }
+  }
+
+  // Ensure the sub-agent (referral partner) exists in database
+  const subAgent = await ReferralPartnerModel.findById(patient.subAgentId);
+  if (!subAgent) {
+    throw new NotFoundError("Assigned sub-agent / referral partner not found");
+  }
+
+  const requestedPaymentStatus =
+    payload.paymentStatus || payload.subAgentPaymentStatus;
+
+  // 1. If subAgentCommission is being updated
+  if (payload.subAgentCommission !== undefined) {
+    const newCommission = Number(payload.subAgentCommission);
+    const previousCommission = patient.subAgentCommission || 0;
+    patient.subAgentCommission = newCommission;
+
+    // Rule: commission 0 thek update korle, paymentStatus hobe pending
+    if (previousCommission === 0 && newCommission > 0 && !requestedPaymentStatus) {
+      patient.subAgentPaymentStatus = COMMISSION_PAYMENT_STATUS.PENDING;
+    } else if (
+      patient.subAgentPaymentStatus === COMMISSION_PAYMENT_STATUS.UNPAID &&
+      newCommission > 0 &&
+      !requestedPaymentStatus
+    ) {
+      patient.subAgentPaymentStatus = COMMISSION_PAYMENT_STATUS.PENDING;
+    } else if (newCommission === 0 && !requestedPaymentStatus) {
+      patient.subAgentPaymentStatus = COMMISSION_PAYMENT_STATUS.UNPAID;
+    }
+  }
+
+  // 2. If paymentStatus is explicitly provided
+  if (requestedPaymentStatus) {
+    // Cannot mark as paid when commission is 0
+    if (
+      requestedPaymentStatus === COMMISSION_PAYMENT_STATUS.PAID &&
+      patient.subAgentCommission <= 0
+    ) {
+      throw new BadRequestError(
+        "Cannot change payment status to 'paid' when sub-agent commission is 0. Please set a commission fee first.",
+      );
+    }
+    patient.subAgentPaymentStatus = requestedPaymentStatus;
+  }
+
+  await patient.save();
+
+  const updatedPatient = await AgentPatientModel.findById(patient._id)
+    .populate("agentUserId", "_id fullName email phone")
+    .populate("subAgentId", "_id refCode fullName email phone agencyName");
+
+  return updatedPatient;
+};
+
+/* ==================== Update Agent Payment Status ==================== */
+const updateAgentPaymentStatus = async (
+  patientId: string,
+  payload: TUpdateAgentCommissionPayload,
+) => {
+  return await updateAgentCommission(patientId, payload);
+};
+
+/* ==================== Update Sub-Agent Payment Status ==================== */
+const updateSubAgentPaymentStatus = async (
+  patientId: string,
+  payload: TUpdateSubAgentCommissionPayload,
+) => {
+  return await updateSubAgentCommission(patientId, payload);
+};
+
 const AgentPatientService = {
   submitPatientByAgent,
   submitPatientBySubAgent,
   getPatientsByAgent,
   getPatientsBySubAgent,
+  getAllPatientsByAdmin,
   getStatusStats,
+  getAgentCommissionStats,
+  getSubAgentCommissionStats,
   getPatientById,
   updatePatient,
   updatePatientStatus,
   deletePatient,
+  updateAgentCommission,
+  updateSubAgentCommission,
+  updateAgentPaymentStatus,
+  updateSubAgentPaymentStatus,
 };
 
 export default AgentPatientService;

@@ -32,6 +32,8 @@ import ReferralPartnerModel from "./referralPartner.model";
 import generateReferralToken from "../../utils/generateReferralToken";
 import config from "../../config";
 import { hashedPassword } from "../../helpers/PasswordHelper";
+import { TAgentQuery } from "../agent/agent.interface";
+import { AGENT_SEARCHABLE_FIELDS } from "../agent/agent.constant";
 
 /**
  * Format date to short Month Year string (e.g. "Jan 2026")
@@ -765,6 +767,73 @@ const getMyNetworks = async (
   };
 };
 
+/*=========== get sub agents ===========*/
+const getSubAgents = async (query: TAgentQuery) => {
+  const {
+    searchTerm,
+    page = 1,
+    limit = 10,
+    sortOrder = "desc",
+    sortBy = "createdAt",
+    ...filters
+  } = query;
+
+  const skip = (Number(page) - 1) * Number(limit);
+  const sortDirection = sortOrder === "asc" ? 1 : -1;
+
+  let searchQuery = {};
+  if (searchTerm) {
+    searchQuery = makeSearchQuery(searchTerm, AGENT_SEARCHABLE_FIELDS);
+  }
+
+  let filterQuery = {};
+  if (Object.keys(filters).length > 0) {
+    filterQuery = makeFilterQuery(filters);
+  }
+
+  const pipeline: PipelineStage[] = [
+    {
+      $match: {
+        ...searchQuery,
+        ...filterQuery,
+      },
+    },
+  ];
+
+  const agents = await ReferralPartnerModel.aggregate([
+    ...pipeline,
+    {
+      $project: {
+        password: 0,
+        inviteToken: 0,
+        inviteLink: 0
+      },
+    },
+    { $sort: { [sortBy]: sortDirection } },
+    { $skip: skip },
+    { $limit: Number(limit) },
+  ]);
+
+  const countPipeline: PipelineStage[] = [
+    ...pipeline,
+    { $count: "totalCount" },
+  ];
+  const totalCountResult = await ReferralPartnerModel.aggregate(countPipeline);
+
+  const totalCount = totalCountResult[0]?.totalCount || 0;
+  const totalPages = Math.ceil(totalCount / Number(limit));
+
+  return {
+    meta: {
+      page: Number(page),
+      limit: Number(limit),
+      totalPages,
+      total: totalCount,
+    },
+    data: agents,
+  };
+};
+
 const ReferralPartnerService = {
   generateInvitationLink,
   registerPartner,
@@ -777,7 +846,8 @@ const ReferralPartnerService = {
   changePartnerStatus,
   deletePartner,
   seedSamplePartners,
-  getMyNetworks
+  getMyNetworks,
+  getSubAgents
 };
 
 export default ReferralPartnerService;

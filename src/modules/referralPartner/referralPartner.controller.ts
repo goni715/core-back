@@ -198,6 +198,18 @@ const getMyNetworks = asyncHandler(async (req: Request, res: Response) => {
   });
 });
 
+
+const getSubAgents = asyncHandler(async (req: Request, res: Response) => {
+  const validatedQuery = (req as any).validatedQuery;
+  const result = await ReferralPartnerService.getSubAgents(validatedQuery);
+  res.status(200).json({
+    success: true,
+    message: "Referral partners are retrieved successfully",
+    meta: result.meta,
+    data: result.data,
+  });
+});
+
 const ReferralPartnerController = {
   generateInvitationLink,
   registerPartner,
@@ -210,7 +222,8 @@ const ReferralPartnerController = {
   changePartnerStatus,
   deletePartner,
   seedSamplePartners,
-  getMyNetworks
+  getMyNetworks,
+  getSubAgents
 };
 
 export default ReferralPartnerController;

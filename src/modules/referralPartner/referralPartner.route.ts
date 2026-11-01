@@ -9,6 +9,7 @@ import {
   getMyNetworksValidationSchema,
   getReferralPartnersValidationSchema,
   getSingleReferralPartnerValidationSchema,
+  getSubAgentsValidationSchema,
   inviteReferralPartnerValidationSchema,
   registerReferralPartnerValidationSchema,
   updateReferralPartnerValidationSchema,
@@ -110,7 +111,7 @@ router.get(
 );
 
 router.get(
-  "/:partnerId",
+  "/single-partner/:partnerId",
   authMiddleware(...allowedRoles),
   validationMiddleware(getSingleReferralPartnerValidationSchema),
   ReferralPartnerController.getSinglePartner,
@@ -154,6 +155,12 @@ router.delete(
   validationMiddleware(deleteReferralPartnerValidationSchema),
   ReferralPartnerController.deletePartner,
 );
+
+router.get("/sub-agents",
+  authMiddleware(USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
+  validationMiddleware(getSubAgentsValidationSchema),
+  ReferralPartnerController.getSubAgents
+)
 
 const ReferralPartnerRoutes = router;
 export default ReferralPartnerRoutes;

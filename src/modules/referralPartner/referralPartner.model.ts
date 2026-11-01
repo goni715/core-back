@@ -123,9 +123,6 @@ const referralPartnerSchema = new Schema<IReferralPartner>(
 
 // Auto-fill initials & hash password before saving
 referralPartnerSchema.pre("save", async function () {
-  if (this.isModified("password") && this.password) {
-    this.password = await hashedPassword(this.password);
-  }
   if (!this.initials && this.fullName) {
     const parts = this.fullName.trim().split(/\s+/);
     const firstWord = parts[0] || "";

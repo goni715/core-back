@@ -1,5 +1,6 @@
 import { Document, Types } from "mongoose";
 import {
+  COMMISSION_PAYMENT_STATUS,
   PATIENT_CASE_STATUS,
   PATIENT_GENDER,
 } from "./agentPatient.constant";
@@ -9,6 +10,9 @@ export type TPatientCaseStatus =
 
 export type TPatientGender =
   (typeof PATIENT_GENDER)[keyof typeof PATIENT_GENDER];
+
+export type TCommissionPaymentStatus =
+  (typeof COMMISSION_PAYMENT_STATUS)[keyof typeof COMMISSION_PAYMENT_STATUS];
 
 export interface IPatientTimeline {
   submittedAt: Date;
@@ -23,6 +27,10 @@ export interface IAgentPatient extends Document {
   caseId: string;
   agentUserId: Types.ObjectId;
   subAgentId?: Types.ObjectId | null; // Optional Sub-Agent ObjectId
+  agentCommissionFee: number;
+  agentPaymentStatus: TCommissionPaymentStatus;
+  subAgentCommission: number;
+  subAgentPaymentStatus: TCommissionPaymentStatus;
   fullName: string;
   phone: string;
   age: number;
@@ -57,6 +65,26 @@ export type TUpdateStatusPayload = {
   status: TPatientCaseStatus;
 };
 
+export type TUpdateAgentCommissionPayload = {
+  agentUserId?: string | undefined;
+  agentCommissionFee?: number | undefined;
+  paymentStatus?: TCommissionPaymentStatus | undefined;
+  agentPaymentStatus?: TCommissionPaymentStatus | undefined;
+};
+
+export type TUpdateSubAgentCommissionPayload = {
+  subAgentId?: string | undefined;
+  subAgentCommission?: number | undefined;
+  paymentStatus?: TCommissionPaymentStatus | undefined;
+  subAgentPaymentStatus?: TCommissionPaymentStatus | undefined;
+};
+
+export type TUpdatePaymentStatusPayload = {
+  agentUserId?: string | undefined;
+  subAgentId?: string | undefined;
+  paymentStatus: TCommissionPaymentStatus;
+};
+
 export type TAgentPatientQuery = {
   searchTerm?: string;
   status?: TPatientCaseStatus | "all";
@@ -69,6 +97,8 @@ export type TAgentPatientQuery = {
   subAgent?: string;
   partnerId?: string;
   partner?: string;
+  agentPaymentStatus?: TCommissionPaymentStatus | "all";
+  subAgentPaymentStatus?: TCommissionPaymentStatus | "all";
   page?: string | number;
   limit?: string | number;
   sortBy?: string;

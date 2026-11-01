@@ -1,5 +1,7 @@
 import { Schema, model } from "mongoose";
 import {
+  COMMISSION_PAYMENT_STATUS,
+  COMMISSION_PAYMENT_STATUS_VALUES,
   PATIENT_CASE_STATUS,
   PATIENT_CASE_STATUS_VALUES,
   PATIENT_GENDER_VALUES,
@@ -56,6 +58,34 @@ const agentPatientSchema = new Schema<IAgentPatient>(
       type: Schema.Types.ObjectId,
       ref: "ReferralPartner",
       default: null,
+      index: true,
+    },
+    agentCommissionFee: {
+      type: Number,
+      default: 0,
+      min: [0, "Agent commission fee cannot be negative"],
+    },
+    agentPaymentStatus: {
+      type: String,
+      enum: {
+        values: COMMISSION_PAYMENT_STATUS_VALUES,
+        message: "{VALUE} is not a valid agent payment status",
+      },
+      default: COMMISSION_PAYMENT_STATUS.UNPAID,
+      index: true,
+    },
+    subAgentCommission: {
+      type: Number,
+      default: 0,
+      min: [0, "Sub agent commission cannot be negative"],
+    },
+    subAgentPaymentStatus: {
+      type: String,
+      enum: {
+        values: COMMISSION_PAYMENT_STATUS_VALUES,
+        message: "{VALUE} is not a valid sub agent payment status",
+      },
+      default: COMMISSION_PAYMENT_STATUS.UNPAID,
       index: true,
     },
     fullName: {

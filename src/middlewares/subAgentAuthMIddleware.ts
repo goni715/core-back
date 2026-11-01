@@ -5,6 +5,8 @@ import { verifyToken } from "../helpers/JwtHelper";
 import asyncHandler from "../utils/asyncHandler";
 import UnauthorizedError from "../errors/UnauthorizedError";
 import ReferralPartnerModel from "../modules/referralPartner/referralPartner.model";
+import UserModel from "../modules/user/user.model";
+import { USER_ROLES } from "../modules/user/user.constant";
 
 const subAgentAuthMiddleware = () =>
     asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
@@ -41,6 +43,24 @@ const subAgentAuthMiddleware = () =>
         const subAgent = await ReferralPartnerModel.findById(decoded.userId);
 
         if (!subAgent) {
+            const adminUser = await UserModel.findById(decoded.userId);
+            if (
+                adminUser &&
+                (adminUser.role === USER_ROLES.ADMIN ||
+                    adminUser.role === USER_ROLES.SUPER_ADMIN)
+            ) {
+                req.user = {
+                    userId: String(adminUser._id),
+                    email: adminUser.email,
+                    fullName: adminUser.fullName,
+                    role: adminUser.role,
+                };
+                req.headers.userId = String(adminUser._id);
+                req.headers.email = adminUser.email;
+                req.headers.role = adminUser.role;
+                return next();
+            }
+
             throw new UnauthorizedError(
                 "You are not authorized. This user does not exist.",
             );

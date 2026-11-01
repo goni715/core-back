@@ -1256,10 +1256,11 @@ const loginSubAgent = async (payload: ILogin) => {
   if (!partner) {
     throw new NotFoundError("Sub-Agent partner account not found with this email");
   }
+  console.log(partner)
 
   const isMatch = await checkPassword(password, partner.password);
   if (!isMatch) {
-    throw new BadRequestError("Invalid email or password");
+    throw new UnprocessableError("Invalid email or password");
   }
 
   const jwtPayload = {

@@ -126,3 +126,14 @@ export const getMyNetworksValidationSchema = z.object({
     status: enumSchema("status", REFERRAL_PARTNER_STATUS_VALUES).optional(),
   }),
 });
+
+
+export const getSubAgentsValidationSchema = z.object({
+  query: z.object({
+    searchTerm: z.string().optional(),
+    page: z.string().optional(),
+    limit: z.string().optional(),
+    sortOrder: z.string().optional(),
+    sortBy: z.string().optional(),
+  }),
+});

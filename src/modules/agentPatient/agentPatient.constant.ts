@@ -17,6 +17,16 @@ export const PATIENT_GENDER = {
 
 export const PATIENT_GENDER_VALUES = Object.values(PATIENT_GENDER);
 
+export const COMMISSION_PAYMENT_STATUS = {
+  UNPAID: "unpaid",
+  PENDING: "pending",
+  PAID: "paid",
+} as const;
+
+export const COMMISSION_PAYMENT_STATUS_VALUES = Object.values(
+  COMMISSION_PAYMENT_STATUS,
+);
+
 export const AGENT_PATIENT_SEARCHABLE_FIELDS = [
   "caseId",
   "fullName",

@@ -8,9 +8,14 @@ import {
   createAgentPatientValidationSchema,
   deleteAgentPatientValidationSchema,
   getAgentPatientsValidationSchema,
+  getAllPatientsByAdminValidationSchema,
   getSingleAgentPatientValidationSchema,
   updateAgentPatientValidationSchema,
   updateStatusValidationSchema,
+  updateAgentCommissionValidationSchema,
+  updateSubAgentCommissionValidationSchema,
+  updateAgentPaymentStatusValidationSchema,
+  updateSubAgentPaymentStatusValidationSchema,
 } from "./agentPatient.validation";
 import subAgentAuthMiddleware from "../../middlewares/subAgentAuthMIddleware";
 
@@ -40,6 +45,19 @@ router.get(
   AgentPatientController.getStatusStats,
 );
 
+/* ==================== Commission Stats (Cards & 12 Months Chart) ==================== */
+router.get(
+  "/commission-stats/by-agent",
+  authMiddleware(USER_ROLES.AGENT),
+  AgentPatientController.getAgentCommissionStats,
+);
+
+router.get(
+  "/commission-stats/by-sub-agent",
+  subAgentAuthMiddleware(),
+  AgentPatientController.getSubAgentCommissionStats,
+);
+
 /* ==================== Get Patients List ==================== */
 // Agent sees their own submitted cases
 router.get(
@@ -54,6 +72,22 @@ router.get(
   subAgentAuthMiddleware(),
   validationMiddleware(getAgentPatientsValidationSchema),
   AgentPatientController.getPatientsBySubAgent,
+);
+
+/* ==================== Get All Patients for Admin & Super Admin ==================== */
+// Admin & Super Admin see all submitted cases with agent & sub-agent joins
+router.get(
+  "/all-patients/by-admin",
+  authMiddleware(USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
+  validationMiddleware(getAllPatientsByAdminValidationSchema),
+  AgentPatientController.getAllPatientsByAdmin,
+);
+
+router.get(
+  "/all-patients",
+  authMiddleware(USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
+  validationMiddleware(getAllPatientsByAdminValidationSchema),
+  AgentPatientController.getAllPatientsByAdmin,
 );
 
 /* ==================== Get Single Patient ==================== */
@@ -96,6 +130,70 @@ router.delete(
   authMiddleware(USER_ROLES.AGENT),
   validationMiddleware(deleteAgentPatientValidationSchema),
   AgentPatientController.deletePatient,
+);
+
+/* ==================== Update Agent Commission ==================== */
+// Admin & Super Admin add/update commission fee for agent
+router.patch(
+  "/update-agent-commission/:patientId",
+  authMiddleware(USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
+  validationMiddleware(updateAgentCommissionValidationSchema),
+  AgentPatientController.updateAgentCommission,
+);
+
+router.patch(
+  "/agent-commission/:patientId",
+  authMiddleware(USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
+  validationMiddleware(updateAgentCommissionValidationSchema),
+  AgentPatientController.updateAgentCommission,
+);
+
+/* ==================== Update Agent Payment Status ==================== */
+// Admin & Super Admin update payment status for agent commission
+router.patch(
+  "/update-agent-payment-status/:patientId",
+  authMiddleware(USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
+  validationMiddleware(updateAgentPaymentStatusValidationSchema),
+  AgentPatientController.updateAgentPaymentStatus,
+);
+
+router.patch(
+  "/agent-payment-status/:patientId",
+  authMiddleware(USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
+  validationMiddleware(updateAgentPaymentStatusValidationSchema),
+  AgentPatientController.updateAgentPaymentStatus,
+);
+
+/* ==================== Update Sub-Agent Commission ==================== */
+// Admin & Super Admin add/update commission for sub-agent
+router.patch(
+  "/update-sub-agent-commission/:patientId",
+  authMiddleware(USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
+  validationMiddleware(updateSubAgentCommissionValidationSchema),
+  AgentPatientController.updateSubAgentCommission,
+);
+
+router.patch(
+  "/sub-agent-commission/:patientId",
+  authMiddleware(USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
+  validationMiddleware(updateSubAgentCommissionValidationSchema),
+  AgentPatientController.updateSubAgentCommission,
+);
+
+/* ==================== Update Sub-Agent Payment Status ==================== */
+// Admin & Super Admin update payment status for sub-agent commission
+router.patch(
+  "/update-sub-agent-payment-status/:patientId",
+  authMiddleware(USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
+  validationMiddleware(updateSubAgentPaymentStatusValidationSchema),
+  AgentPatientController.updateSubAgentPaymentStatus,
+);
+
+router.patch(
+  "/sub-agent-payment-status/:patientId",
+  authMiddleware(USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
+  validationMiddleware(updateSubAgentPaymentStatusValidationSchema),
+  AgentPatientController.updateSubAgentPaymentStatus,
 );
 
 const AgentPatientRoutes = router;
