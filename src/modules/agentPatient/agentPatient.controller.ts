@@ -317,33 +317,16 @@ const deletePatient = asyncHandler(async (req: Request, res: Response) => {
 /* ==================== Update Agent Commission ==================== */
 const updateAgentCommission = asyncHandler(
   async (req: Request, res: Response) => {
-    const patientId =
-      req.params.patientId ||
-      req.params.agentPatientId ||
-      req.body.patientId ||
-      req.body.agentPatientId;
-    const {
-      agentUserId,
-      agentCommissionFee,
-      paymentStatus,
-      agentPaymentStatus,
-    } = req.body;
+    const { patientId } = req.params;
 
     const result = await AgentPatientService.updateAgentCommission(
       patientId as string,
-      {
-        agentUserId,
-        agentCommissionFee:
-          agentCommissionFee !== undefined
-            ? Number(agentCommissionFee)
-            : undefined,
-        paymentStatus: paymentStatus || agentPaymentStatus,
-      },
+      req.body,
     );
 
     res.status(200).json({
       success: true,
-      message: "Agent commission and payment status updated successfully",
+      message: "Agent commission fee updated successfully",
       data: result,
     });
   },
@@ -352,37 +335,16 @@ const updateAgentCommission = asyncHandler(
 /* ==================== Update Sub-Agent Commission ==================== */
 const updateSubAgentCommission = asyncHandler(
   async (req: Request, res: Response) => {
-    const patientId =
-      req.params.patientId ||
-      req.params.agentPatientId ||
-      req.body.patientId ||
-      req.body.agentPatientId;
-    const {
-      subAgentId,
-      subAgentCommission,
-      subAgentCommissionFee,
-      paymentStatus,
-      subAgentPaymentStatus,
-    } = req.body;
-
-    const commission =
-      subAgentCommission !== undefined
-        ? subAgentCommission
-        : subAgentCommissionFee;
+    const { patientId } = req.params;
 
     const result = await AgentPatientService.updateSubAgentCommission(
       patientId as string,
-      {
-        subAgentId,
-        subAgentCommission:
-          commission !== undefined ? Number(commission) : undefined,
-        paymentStatus: paymentStatus || subAgentPaymentStatus,
-      },
+      req.body,
     );
 
     res.status(200).json({
       success: true,
-      message: "Sub-agent commission and payment status updated successfully",
+      message: "Sub-agent commission fee updated successfully",
       data: result,
     });
   },
@@ -391,24 +353,21 @@ const updateSubAgentCommission = asyncHandler(
 /* ==================== Update Agent Payment Status ==================== */
 const updateAgentPaymentStatus = asyncHandler(
   async (req: Request, res: Response) => {
-    const patientId =
-      req.params.patientId ||
-      req.params.agentPatientId ||
-      req.body.patientId ||
-      req.body.agentPatientId;
-    const { agentUserId, paymentStatus, agentPaymentStatus } = req.body;
+    const { patientId } = req.params;
+    const { agentPaymentStatus, paymentStatus } = req.body;
+    const targetStatus = agentPaymentStatus || paymentStatus;
 
     const result = await AgentPatientService.updateAgentPaymentStatus(
       patientId as string,
       {
-        agentUserId,
-        paymentStatus: paymentStatus || agentPaymentStatus,
+        agentPaymentStatus: targetStatus,
+        paymentStatus: targetStatus,
       },
     );
 
     res.status(200).json({
       success: true,
-      message: "Agent payment status updated successfully",
+      message: `Agent payment status updated to '${targetStatus}' successfully`,
       data: result,
     });
   },
@@ -417,24 +376,21 @@ const updateAgentPaymentStatus = asyncHandler(
 /* ==================== Update Sub-Agent Payment Status ==================== */
 const updateSubAgentPaymentStatus = asyncHandler(
   async (req: Request, res: Response) => {
-    const patientId =
-      req.params.patientId ||
-      req.params.agentPatientId ||
-      req.body.patientId ||
-      req.body.agentPatientId;
-    const { subAgentId, paymentStatus, subAgentPaymentStatus } = req.body;
+    const { patientId } = req.params;
+    const { subAgentPaymentStatus, paymentStatus } = req.body;
+    const targetStatus = subAgentPaymentStatus || paymentStatus;
 
     const result = await AgentPatientService.updateSubAgentPaymentStatus(
       patientId as string,
       {
-        subAgentId,
-        paymentStatus: paymentStatus || subAgentPaymentStatus,
+        subAgentPaymentStatus: targetStatus,
+        paymentStatus: targetStatus,
       },
     );
 
     res.status(200).json({
       success: true,
-      message: "Sub-agent payment status updated successfully",
+      message: `Sub-agent payment status updated to '${targetStatus}' successfully`,
       data: result,
     });
   },

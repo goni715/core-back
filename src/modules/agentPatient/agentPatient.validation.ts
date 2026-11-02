@@ -172,34 +172,20 @@ export const updateAgentCommissionValidationSchema = z.object({
       .trim()
       .min(1, "patientId is required"),
   }),
-  body: z
-    .object({
-      agentUserId: optionalObjectIdSchema("agentUserId"),
-      agentCommissionFee: z.preprocess(
-        (val) =>
-          val !== undefined && val !== null && val !== "" ? Number(val) : val,
-        z.number().min(0, "agentCommissionFee cannot be negative").optional(),
-      ),
-      paymentStatus: enumSchema(
-        "paymentStatus",
-        COMMISSION_PAYMENT_STATUS_VALUES,
-      ).optional(),
-      agentPaymentStatus: enumSchema(
-        "agentPaymentStatus",
-        COMMISSION_PAYMENT_STATUS_VALUES,
-      ).optional(),
-    })
-    .refine(
-      (data) =>
-        data.agentCommissionFee !== undefined ||
-        data.paymentStatus !== undefined ||
-        data.agentPaymentStatus !== undefined,
-      {
-        message:
-          "At least one of agentCommissionFee or paymentStatus must be provided",
-        path: ["body"],
-      },
+  body: z.object({
+    agentCommissionFee: z.preprocess(
+      (val) =>
+        val !== undefined && val !== null && val !== "" ? Number(val) : val,
+      z
+        .number({
+          error: (issue) =>
+            issue.input === undefined
+              ? "agentCommissionFee is required"
+              : "agentCommissionFee must be a number",
+        })
+        .min(0, "agentCommissionFee cannot be negative"),
     ),
+  }),
 });
 
 export const updateSubAgentCommissionValidationSchema = z.object({
@@ -216,38 +202,19 @@ export const updateSubAgentCommissionValidationSchema = z.object({
   }),
   body: z
     .object({
-      subAgentId: optionalObjectIdSchema("subAgentId"),
-      subAgentCommission: z.preprocess(
-        (val) =>
-          val !== undefined && val !== null && val !== "" ? Number(val) : val,
-        z.number().min(0, "subAgentCommission cannot be negative").optional(),
-      ),
       subAgentCommissionFee: z.preprocess(
         (val) =>
           val !== undefined && val !== null && val !== "" ? Number(val) : val,
-        z.number().min(0, "subAgentCommission cannot be negative").optional(),
+        z
+          .number({
+            error: (issue) =>
+              issue.input === undefined
+                ? "subAgentCommissionFee is required"
+                : "subAgentCommissionFee must be a number",
+          })
+          .min(0, "subAgentCommissionFee cannot be negative")
       ),
-      paymentStatus: enumSchema(
-        "paymentStatus",
-        COMMISSION_PAYMENT_STATUS_VALUES,
-      ).optional(),
-      subAgentPaymentStatus: enumSchema(
-        "subAgentPaymentStatus",
-        COMMISSION_PAYMENT_STATUS_VALUES,
-      ).optional(),
     })
-    .refine(
-      (data) =>
-        data.subAgentCommission !== undefined ||
-        data.subAgentCommissionFee !== undefined ||
-        data.paymentStatus !== undefined ||
-        data.subAgentPaymentStatus !== undefined,
-      {
-        message:
-          "At least one of subAgentCommission or paymentStatus must be provided",
-        path: ["body"],
-      },
-    ),
 });
 
 export const updateAgentPaymentStatusValidationSchema = z.object({
@@ -264,23 +231,22 @@ export const updateAgentPaymentStatusValidationSchema = z.object({
   }),
   body: z
     .object({
-      agentUserId: optionalObjectIdSchema("agentUserId"),
-      paymentStatus: enumSchema(
-        "paymentStatus",
-        COMMISSION_PAYMENT_STATUS_VALUES,
-      ).optional(),
       agentPaymentStatus: enumSchema(
         "agentPaymentStatus",
+        COMMISSION_PAYMENT_STATUS_VALUES,
+      ).optional(),
+      paymentStatus: enumSchema(
+        "paymentStatus",
         COMMISSION_PAYMENT_STATUS_VALUES,
       ).optional(),
     })
     .refine(
       (data) =>
-        data.paymentStatus !== undefined ||
-        data.agentPaymentStatus !== undefined,
+        data.agentPaymentStatus !== undefined ||
+        data.paymentStatus !== undefined,
       {
-        message: "paymentStatus is required",
-        path: ["paymentStatus"],
+        message: "agentPaymentStatus is required",
+        path: ["agentPaymentStatus"],
       },
     ),
 });
@@ -299,23 +265,22 @@ export const updateSubAgentPaymentStatusValidationSchema = z.object({
   }),
   body: z
     .object({
-      subAgentId: optionalObjectIdSchema("subAgentId"),
-      paymentStatus: enumSchema(
-        "paymentStatus",
-        COMMISSION_PAYMENT_STATUS_VALUES,
-      ).optional(),
       subAgentPaymentStatus: enumSchema(
         "subAgentPaymentStatus",
+        COMMISSION_PAYMENT_STATUS_VALUES,
+      ).optional(),
+      paymentStatus: enumSchema(
+        "paymentStatus",
         COMMISSION_PAYMENT_STATUS_VALUES,
       ).optional(),
     })
     .refine(
       (data) =>
-        data.paymentStatus !== undefined ||
-        data.subAgentPaymentStatus !== undefined,
+        data.subAgentPaymentStatus !== undefined ||
+        data.paymentStatus !== undefined,
       {
-        message: "paymentStatus is required",
-        path: ["paymentStatus"],
+        message: "subAgentPaymentStatus is required",
+        path: ["subAgentPaymentStatus"],
       },
     ),
 });

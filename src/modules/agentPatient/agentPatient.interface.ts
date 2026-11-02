@@ -75,6 +75,7 @@ export type TUpdateAgentCommissionPayload = {
 export type TUpdateSubAgentCommissionPayload = {
   subAgentId?: string | undefined;
   subAgentCommission?: number | undefined;
+  subAgentCommissionFee?: number | undefined;
   paymentStatus?: TCommissionPaymentStatus | undefined;
   subAgentPaymentStatus?: TCommissionPaymentStatus | undefined;
 };
@@ -83,6 +84,16 @@ export type TUpdatePaymentStatusPayload = {
   agentUserId?: string | undefined;
   subAgentId?: string | undefined;
   paymentStatus: TCommissionPaymentStatus;
+};
+
+export type TUpdateAgentPaymentStatusPayload = {
+  agentPaymentStatus?: TCommissionPaymentStatus | undefined;
+  paymentStatus?: TCommissionPaymentStatus | undefined;
+};
+
+export type TUpdateSubAgentPaymentStatusPayload = {
+  subAgentPaymentStatus?: TCommissionPaymentStatus | undefined;
+  paymentStatus?: TCommissionPaymentStatus | undefined;
 };
 
 export type TAgentPatientQuery = {

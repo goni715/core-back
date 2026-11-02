@@ -20,6 +20,8 @@ import {
   TUpdateAgentCommissionPayload,
   TUpdateAgentPatientPayload,
   TUpdateSubAgentCommissionPayload,
+  TUpdateAgentPaymentStatusPayload,
+  TUpdateSubAgentPaymentStatusPayload,
 } from "./agentPatient.interface";
 import AgentPatientModel from "./agentPatient.model";
 import ReferralPartnerModel from "../referralPartner/referralPartner.model";
@@ -1633,9 +1635,14 @@ const updateSubAgentCommission = async (
   const requestedPaymentStatus =
     payload.paymentStatus || payload.subAgentPaymentStatus;
 
-  // 1. If subAgentCommission is being updated
-  if (payload.subAgentCommission !== undefined) {
-    const newCommission = Number(payload.subAgentCommission);
+  // 1. If subAgentCommission / subAgentCommissionFee is being updated
+  const commissionValue =
+    payload.subAgentCommissionFee !== undefined
+      ? payload.subAgentCommissionFee
+      : payload.subAgentCommission;
+
+  if (commissionValue !== undefined) {
+    const newCommission = Number(commissionValue);
     const previousCommission = patient.subAgentCommission || 0;
     patient.subAgentCommission = newCommission;
 
@@ -1679,17 +1686,90 @@ const updateSubAgentCommission = async (
 /* ==================== Update Agent Payment Status ==================== */
 const updateAgentPaymentStatus = async (
   patientId: string,
-  payload: TUpdateAgentCommissionPayload,
+  payload: TUpdateAgentPaymentStatusPayload,
 ) => {
-  return await updateAgentCommission(patientId, payload);
+  const query = isObjectId(patientId)
+    ? { _id: new Types.ObjectId(patientId) }
+    : { caseId: patientId };
+
+  const patient = await AgentPatientModel.findOne(query);
+  if (!patient) {
+    throw new NotFoundError("Patient case not found");
+  }
+
+  const requestedPaymentStatus =
+    payload.agentPaymentStatus || payload.paymentStatus;
+
+  if (!requestedPaymentStatus) {
+    throw new BadRequestError("agentPaymentStatus is required");
+  }
+
+  // Cannot mark as paid when agent commission fee is 0
+  if (
+    requestedPaymentStatus === COMMISSION_PAYMENT_STATUS.PAID &&
+    (patient.agentCommissionFee || 0) <= 0
+  ) {
+    throw new BadRequestError(
+      "Cannot change payment status to 'paid' when agent commission fee is 0. Please set a commission fee first.",
+    );
+  }
+
+  patient.agentPaymentStatus = requestedPaymentStatus;
+  await patient.save();
+
+  const updatedPatient = await AgentPatientModel.findById(patient._id)
+    .populate("agentUserId", "_id fullName email phone")
+    .populate("subAgentId", "_id refCode fullName email phone agencyName");
+
+  return updatedPatient;
 };
 
 /* ==================== Update Sub-Agent Payment Status ==================== */
 const updateSubAgentPaymentStatus = async (
   patientId: string,
-  payload: TUpdateSubAgentCommissionPayload,
+  payload: TUpdateSubAgentPaymentStatusPayload,
 ) => {
-  return await updateSubAgentCommission(patientId, payload);
+  const query = isObjectId(patientId)
+    ? { _id: new Types.ObjectId(patientId) }
+    : { caseId: patientId };
+
+  const patient = await AgentPatientModel.findOne(query);
+  if (!patient) {
+    throw new NotFoundError("Patient case not found");
+  }
+
+  // Check if patient case actually has a subAgentId assigned
+  if (!patient.subAgentId) {
+    throw new BadRequestError(
+      "This patient case does not have an assigned sub-agent / referral partner",
+    );
+  }
+
+  const requestedPaymentStatus =
+    payload.subAgentPaymentStatus || payload.paymentStatus;
+
+  if (!requestedPaymentStatus) {
+    throw new BadRequestError("subAgentPaymentStatus is required");
+  }
+
+  // Cannot mark as paid when sub-agent commission is 0
+  if (
+    requestedPaymentStatus === COMMISSION_PAYMENT_STATUS.PAID &&
+    (patient.subAgentCommission || 0) <= 0
+  ) {
+    throw new BadRequestError(
+      "Cannot change payment status to 'paid' when sub-agent commission is 0. Please set a commission fee first.",
+    );
+  }
+
+  patient.subAgentPaymentStatus = requestedPaymentStatus;
+  await patient.save();
+
+  const updatedPatient = await AgentPatientModel.findById(patient._id)
+    .populate("agentUserId", "_id fullName email phone")
+    .populate("subAgentId", "_id refCode fullName email phone agencyName");
+
+  return updatedPatient;
 };
 
 const AgentPatientService = {
