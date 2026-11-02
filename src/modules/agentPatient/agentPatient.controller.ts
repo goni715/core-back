@@ -6,12 +6,10 @@ import { USER_ROLES } from "../user/user.constant";
 /* ==================== Create Patient Case ==================== */
 const submitPatientByAgent = asyncHandler(async (req: Request, res: Response) => {
   const { userId } = req.headers;
-  const files = (req.files as Express.Multer.File[]) || (req.file ? [req.file] : []);
 
   const result = await AgentPatientService.submitPatientByAgent(
     userId as string,
     req.body,
-    files,
   );
 
   res.status(201).json({
@@ -24,12 +22,10 @@ const submitPatientByAgent = asyncHandler(async (req: Request, res: Response) =>
 /* ==================== Create Patient Case ==================== */
 const submitPatientBySubAgent = asyncHandler(async (req: Request, res: Response) => {
   const { userId } = req.headers;
-  const files = (req.files as Express.Multer.File[]) || (req.file ? [req.file] : []);
 
   const result = await AgentPatientService.submitPatientBySubAgent(
     userId as string,
     req.body,
-    files,
   );
 
   res.status(201).json({
@@ -185,13 +181,11 @@ const getPatientById = asyncHandler(async (req: Request, res: Response) => {
 const updatePatient = asyncHandler(async (req: Request, res: Response) => {
   const { userId } = req.headers;
   const { patientId } = req.params;
-  const files = (req.files as Express.Multer.File[]) || (req.file ? [req.file] : []);
 
   const result = await AgentPatientService.updatePatient(
     patientId as string,
     userId as string,
     req.body,
-    files,
   );
 
   res.status(200).json({

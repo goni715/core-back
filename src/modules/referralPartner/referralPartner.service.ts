@@ -386,9 +386,7 @@ const registerPartner = async (payload: TRegisterReferralPartnerPayload) => {
 
   // 3. Check for existing partner with this email
   const existingPartner = await ReferralPartnerModel.findOne({
-    email,
-    agentUserId,
-    refCode,
+    email
   });
 
   if (existingPartner) {
@@ -401,7 +399,7 @@ const registerPartner = async (payload: TRegisterReferralPartnerPayload) => {
   const hashPass = await hashedPassword(password);
 
   // 4. Create new partner record
-  const partner = await ReferralPartnerModel.create({
+  await ReferralPartnerModel.create({
     refCode,
     agentUserId: new Types.ObjectId(agentUserId),
     fullName,

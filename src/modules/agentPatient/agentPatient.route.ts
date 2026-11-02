@@ -1,5 +1,4 @@
 import express from "express";
-import reportUpload from "../../helpers/reportUpload";
 import authMiddleware from "../../middlewares/authMiddleware";
 import validationMiddleware from "../../middlewares/validationMiddleware";
 import { USER_ROLES } from "../user/user.constant";
@@ -22,11 +21,10 @@ import subAgentAuthMiddleware from "../../middlewares/subAgentAuthMIddleware";
 const router = express.Router();
 
 /* ==================== Create / Submit Patient ==================== */
-// Agent submits a new referred patient case
+// Agent submits a new referred patient case (JSON format)
 router.post(
   "/submit-patient/by-agent",
   authMiddleware(USER_ROLES.AGENT),
-  reportUpload.array("reports", 10),
   validationMiddleware(createAgentPatientValidationSchema),
   AgentPatientController.submitPatientByAgent,
 );
@@ -34,7 +32,6 @@ router.post(
 router.post(
   "/submit-patient/by-sub-agent",
   subAgentAuthMiddleware(),
-  reportUpload.array("reports", 10),
   validationMiddleware(createAgentPatientValidationSchema),
   AgentPatientController.submitPatientBySubAgent,
 );
@@ -103,7 +100,6 @@ router.get(
 router.patch(
   "/update-patient/:patientId",
   authMiddleware(USER_ROLES.AGENT),
-  reportUpload.array("reports", 10),
   validationMiddleware(updateAgentPatientValidationSchema),
   AgentPatientController.updatePatient,
 );

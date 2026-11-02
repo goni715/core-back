@@ -39,7 +39,7 @@ export interface IAgentPatient extends Document {
   symptoms: string;
   preferredCountry: string;
   budgetRange: string;
-  reports: string[];
+  driveLink?: string | null;
   status: TPatientCaseStatus;
   timeline: IPatientTimeline;
   createdAt?: Date;
@@ -56,7 +56,7 @@ export type TCreateAgentPatientPayload = {
   symptoms: string;
   preferredCountry: string;
   budgetRange: string;
-  reports?: string[];
+  driveLink?: string | null;
 };
 
 export type TUpdateAgentPatientPayload = Partial<TCreateAgentPatientPayload>;
@@ -97,6 +97,7 @@ export type TAgentPatientQuery = {
   subAgent?: string;
   partnerId?: string;
   partner?: string;
+  paymentStatus?: TCommissionPaymentStatus | "all";
   agentPaymentStatus?: TCommissionPaymentStatus | "all";
   subAgentPaymentStatus?: TCommissionPaymentStatus | "all";
   page?: string | number;

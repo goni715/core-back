@@ -33,10 +33,20 @@ const ageZodSchema = z.preprocess(
     .max(150, "Age cannot exceed 150"),
 )
 
+const driveLinkUrlSchema = z
+  .string({
+    error: (issue) =>
+      issue.input === undefined
+        ? "driveLink is required"
+        : "driveLink must be a string",
+  })
+  .trim()
+  .min(1, "driveLink is required")
+  .url("driveLink must be a valid URL");
+
 export const createAgentPatientValidationSchema = z.object({
   body: z
     .object({
-      subAgentId: optionalObjectIdSchema("subAgentId"),
       fullName: requiredStringSchema("fullName"),
       phone: phoneNumberZodSchema,
       age: ageZodSchema,
@@ -45,6 +55,7 @@ export const createAgentPatientValidationSchema = z.object({
       symptoms: requiredStringSchema("symptoms"),
       preferredCountry: requiredStringSchema("preferredCountry"),
       budgetRange: requiredStringSchema('budgetRange'),
+      driveLink: driveLinkUrlSchema,
     }),
 });
 
@@ -54,7 +65,6 @@ export const updateAgentPatientValidationSchema = z.object({
   }),
   body: z
     .object({
-      subAgentId: optionalObjectIdSchema("subAgentId"),
       fullName: requiredStringSchema("fullName").optional(),
       phone: phoneNumberZodSchema.optional(),
       age: ageZodSchema.optional(),
@@ -63,6 +73,7 @@ export const updateAgentPatientValidationSchema = z.object({
       symptoms: requiredStringSchema("symptoms").optional(),
       preferredCountry: requiredStringSchema("preferredCountry").optional(),
       budgetRange: requiredStringSchema("budgetRange").optional(),
+      driveLink: driveLinkUrlSchema.optional().nullable(),
     })
     .refine((data) => Object.values(data).some((val) => val !== undefined), {
       message: "At least one field must be provided to update",
@@ -122,6 +133,7 @@ export const getAllPatientsByAdminValidationSchema = z.object({
     subAgent: z.string().optional(),
     partnerId: z.string().optional(),
     partner: z.string().optional(),
+    paymentStatus: z.string().optional(),
     agentPaymentStatus: z.string().optional(),
     subAgentPaymentStatus: z.string().optional(),
     status: z.string().optional(),

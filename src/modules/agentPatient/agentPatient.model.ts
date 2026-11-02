@@ -135,9 +135,10 @@ const agentPatientSchema = new Schema<IAgentPatient>(
       required: [true, "Budget range is required"],
       trim: true,
     },
-    reports: {
-      type: [String],
-      default: [],
+    driveLink: {
+      type: String,
+      trim: true,
+      default: null,
     },
     status: {
       type: String,
@@ -167,6 +168,27 @@ const agentPatientSchema = new Schema<IAgentPatient>(
     toObject: { virtuals: true },
   },
 );
+
+// Virtual properties for easy frontend access
+agentPatientSchema.virtual("commissionFee").get(function () {
+  return this.agentCommissionFee ?? 0;
+});
+
+agentPatientSchema.virtual("paymentStatus").get(function () {
+  return this.agentPaymentStatus ?? COMMISSION_PAYMENT_STATUS.UNPAID;
+});
+
+agentPatientSchema.virtual("subAgentCommissionFee").get(function () {
+  return this.subAgentCommission ?? 0;
+});
+
+agentPatientSchema.virtual("totalCommissionFee").get(function () {
+  return (this.agentCommissionFee || 0) + (this.subAgentCommission || 0);
+});
+
+agentPatientSchema.virtual("totalCommission").get(function () {
+  return (this.agentCommissionFee || 0) + (this.subAgentCommission || 0);
+});
 
 
 // Indexes for query performance

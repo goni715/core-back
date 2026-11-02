@@ -1256,7 +1256,7 @@ const loginSubAgent = async (payload: ILogin) => {
   if (!partner) {
     throw new NotFoundError("Sub-Agent partner account not found with this email");
   }
-  console.log(partner)
+
 
   const isMatch = await checkPassword(password, partner.password);
   if (!isMatch) {

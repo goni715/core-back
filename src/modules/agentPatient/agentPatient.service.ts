@@ -4,8 +4,6 @@ import BadRequestError from "../../errors/BadRequestError";
 import { makeSearchQuery } from "../../helpers/QueryBuilder";
 import generateCaseId from "../../utils/generateCaseId";
 import isObjectId from "../../utils/isObjectId";
-import uploadToCloudinary from "../../utils/uploadToCloudinary";
-import deleteFromCloudinary from "../../utils/deleteFromCloudinary";
 import {
   AGENT_PATIENT_SEARCHABLE_FIELDS,
   COMMISSION_PAYMENT_STATUS,
@@ -29,103 +27,39 @@ import UserModel from "../user/user.model";
 const submitPatientByAgent = async (
   agentUserId: string,
   payload: TCreateAgentPatientPayload,
-  files?: Express.Multer.File[],
 ) => {
-  const uploadedCloudinaryIds: string[] = [];
-  const reports: string[] = Array.isArray(payload.reports)
-    ? [...payload.reports]
-    : typeof payload.reports === "string"
-      ? [payload.reports]
-      : [];
+  await AgentPatientModel.create({
+    ...payload,
+    caseId: generateCaseId(),
+    agentUserId: new Types.ObjectId(agentUserId),
+  });
 
-  try {
-    // Process optional uploaded report files
-    if (files && files.length > 0) {
-      for (const file of files) {
-        const uploaded = await uploadToCloudinary(file.path, "patient_report");
-        uploadedCloudinaryIds.push(uploaded.public_id);
-        reports.push(uploaded.img_url);
-      }
-    }
-
-    const subAgentId =
-      payload.subAgentId && isObjectId(String(payload.subAgentId))
-        ? new Types.ObjectId(payload.subAgentId)
-        : null;
-
-    await AgentPatientModel.create({
-      ...payload,
-      caseId: generateCaseId(),
-      agentUserId: new Types.ObjectId(agentUserId),
-      subAgentId,
-      reports,
-    });
-
-    if (subAgentId) {
-      await ReferralPartnerModel.findByIdAndUpdate(subAgentId, {
-        $inc: { cases: 1, ongoing: 1 },
-        lastActiveAt: new Date(),
-      });
-    }
-
-    return null;
-  } catch (error) {
-    for (const publicId of uploadedCloudinaryIds) {
-      await deleteFromCloudinary(publicId).catch(() => { });
-    }
-    throw error;
-  }
+  return null;
 };
 
 /* ==================== Create Patient Case By Sub Agent ==================== */
 const submitPatientBySubAgent = async (
   subAgentUserId: string,
   payload: TCreateAgentPatientPayload,
-  files?: Express.Multer.File[],
 ) => {
-
   const subAgent = await ReferralPartnerModel.findById(subAgentUserId);
   if (!subAgent) {
     throw new NotFoundError("Sub-agent account not found");
   }
 
-  const uploadedCloudinaryIds: string[] = [];
-  const reports: string[] = Array.isArray(payload.reports)
-    ? [...payload.reports]
-    : typeof payload.reports === "string"
-      ? [payload.reports]
-      : [];
+  await AgentPatientModel.create({
+    ...payload,
+    caseId: generateCaseId(),
+    agentUserId: subAgent.agentUserId,
+    subAgentId: subAgent._id,
+  });
 
-  try {
-    // Process optional uploaded report files
-    if (files && files.length > 0) {
-      for (const file of files) {
-        const uploaded = await uploadToCloudinary(file.path, "patient_report");
-        uploadedCloudinaryIds.push(uploaded.public_id);
-        reports.push(uploaded.img_url);
-      }
-    }
+  await ReferralPartnerModel.findByIdAndUpdate(subAgent._id, {
+    $inc: { cases: 1, ongoing: 1 },
+    lastActiveAt: new Date(),
+  });
 
-    await AgentPatientModel.create({
-      ...payload,
-      caseId: generateCaseId(),
-      agentUserId: subAgent.agentUserId,
-      subAgentId: subAgent._id,
-      reports,
-    });
-
-    await ReferralPartnerModel.findByIdAndUpdate(subAgent._id, {
-      $inc: { cases: 1, ongoing: 1 },
-      lastActiveAt: new Date(),
-    });
-
-    return null;
-  } catch (error) {
-    for (const publicId of uploadedCloudinaryIds) {
-      await deleteFromCloudinary(publicId).catch(() => { });
-    }
-    throw error;
-  }
+  return null;
 };
 
 /* ==================== Get Patients List ==================== */
@@ -218,10 +152,31 @@ const getPatientsByAgent = async (
         caseId: 1,
         agentUserId: 1,
         subAgentId: 1,
-        agentCommissionFee: 1,
-        agentPaymentStatus: 1,
-        subAgentCommission: 1,
-        subAgentPaymentStatus: 1,
+        commissionFee: { $ifNull: ["$agentCommissionFee", 0] },
+        paymentStatus: {
+          $ifNull: ["$agentPaymentStatus", COMMISSION_PAYMENT_STATUS.UNPAID],
+        },
+        agentCommissionFee: { $ifNull: ["$agentCommissionFee", 0] },
+        agentPaymentStatus: {
+          $ifNull: ["$agentPaymentStatus", COMMISSION_PAYMENT_STATUS.UNPAID],
+        },
+        subAgentCommission: { $ifNull: ["$subAgentCommission", 0] },
+        subAgentCommissionFee: { $ifNull: ["$subAgentCommission", 0] },
+        subAgentPaymentStatus: {
+          $ifNull: ["$subAgentPaymentStatus", COMMISSION_PAYMENT_STATUS.UNPAID],
+        },
+        totalCommissionFee: {
+          $add: [
+            { $ifNull: ["$agentCommissionFee", 0] },
+            { $ifNull: ["$subAgentCommission", 0] },
+          ],
+        },
+        totalCommission: {
+          $add: [
+            { $ifNull: ["$agentCommissionFee", 0] },
+            { $ifNull: ["$subAgentCommission", 0] },
+          ],
+        },
         subAgent: {
           $cond: {
             if: "$subAgent",
@@ -244,7 +199,7 @@ const getPatientsByAgent = async (
         symptoms: 1,
         preferredCountry: 1,
         budgetRange: 1,
-        reports: 1,
+        driveLink: 1,
         status: 1,
         timeline: 1,
         createdAt: 1,
@@ -401,10 +356,31 @@ const getPatientsBySubAgent = async (
         caseId: 1,
         agentUserId: 1,
         subAgentId: 1,
-        agentCommissionFee: 1,
-        agentPaymentStatus: 1,
-        subAgentCommission: 1,
-        subAgentPaymentStatus: 1,
+        commissionFee: { $ifNull: ["$subAgentCommission", 0] },
+        paymentStatus: {
+          $ifNull: ["$subAgentPaymentStatus", COMMISSION_PAYMENT_STATUS.UNPAID],
+        },
+        subAgentCommission: { $ifNull: ["$subAgentCommission", 0] },
+        subAgentCommissionFee: { $ifNull: ["$subAgentCommission", 0] },
+        subAgentPaymentStatus: {
+          $ifNull: ["$subAgentPaymentStatus", COMMISSION_PAYMENT_STATUS.UNPAID],
+        },
+        agentCommissionFee: { $ifNull: ["$agentCommissionFee", 0] },
+        agentPaymentStatus: {
+          $ifNull: ["$agentPaymentStatus", COMMISSION_PAYMENT_STATUS.UNPAID],
+        },
+        totalCommissionFee: {
+          $add: [
+            { $ifNull: ["$agentCommissionFee", 0] },
+            { $ifNull: ["$subAgentCommission", 0] },
+          ],
+        },
+        totalCommission: {
+          $add: [
+            { $ifNull: ["$agentCommissionFee", 0] },
+            { $ifNull: ["$subAgentCommission", 0] },
+          ],
+        },
         agent: {
           $cond: {
             if: "$agent",
@@ -425,7 +401,7 @@ const getPatientsBySubAgent = async (
         symptoms: 1,
         preferredCountry: 1,
         budgetRange: 1,
-        reports: 1,
+        driveLink: 1,
         status: 1,
         timeline: 1,
         createdAt: 1,
@@ -554,8 +530,10 @@ const getAllPatientsByAdmin = async (query: TAgentPatientQuery) => {
   if (subAgentFilter && subAgentFilter !== "all" && isObjectId(subAgentFilter)) {
     additionalFilters.subAgentId = new Types.ObjectId(subAgentFilter);
   }
-  if (query.agentPaymentStatus && query.agentPaymentStatus !== "all") {
-    additionalFilters.agentPaymentStatus = query.agentPaymentStatus;
+  const agentPaymentStatusFilter =
+    query.paymentStatus || query.agentPaymentStatus;
+  if (agentPaymentStatusFilter && agentPaymentStatusFilter !== "all") {
+    additionalFilters.agentPaymentStatus = agentPaymentStatusFilter;
   }
   if (query.subAgentPaymentStatus && query.subAgentPaymentStatus !== "all") {
     additionalFilters.subAgentPaymentStatus = query.subAgentPaymentStatus;
@@ -603,10 +581,31 @@ const getAllPatientsByAdmin = async (query: TAgentPatientQuery) => {
         caseId: 1,
         agentUserId: 1,
         subAgentId: 1,
-        agentCommissionFee: 1,
-        agentPaymentStatus: 1,
-        subAgentCommission: 1,
-        subAgentPaymentStatus: 1,
+        commissionFee: { $ifNull: ["$agentCommissionFee", 0] },
+        paymentStatus: {
+          $ifNull: ["$agentPaymentStatus", COMMISSION_PAYMENT_STATUS.UNPAID],
+        },
+        agentCommissionFee: { $ifNull: ["$agentCommissionFee", 0] },
+        agentPaymentStatus: {
+          $ifNull: ["$agentPaymentStatus", COMMISSION_PAYMENT_STATUS.UNPAID],
+        },
+        subAgentCommission: { $ifNull: ["$subAgentCommission", 0] },
+        subAgentCommissionFee: { $ifNull: ["$subAgentCommission", 0] },
+        subAgentPaymentStatus: {
+          $ifNull: ["$subAgentPaymentStatus", COMMISSION_PAYMENT_STATUS.UNPAID],
+        },
+        totalCommissionFee: {
+          $add: [
+            { $ifNull: ["$agentCommissionFee", 0] },
+            { $ifNull: ["$subAgentCommission", 0] },
+          ],
+        },
+        totalCommission: {
+          $add: [
+            { $ifNull: ["$agentCommissionFee", 0] },
+            { $ifNull: ["$subAgentCommission", 0] },
+          ],
+        },
         agent: {
           $cond: {
             if: "$agent",
@@ -643,7 +642,7 @@ const getAllPatientsByAdmin = async (query: TAgentPatientQuery) => {
         symptoms: 1,
         preferredCountry: 1,
         budgetRange: 1,
-        reports: 1,
+        driveLink: 1,
         status: 1,
         timeline: 1,
         createdAt: 1,
@@ -1129,7 +1128,6 @@ const updatePatient = async (
   patientId: string,
   agentUserId: string,
   payload: TUpdateAgentPatientPayload,
-  files?: Express.Multer.File[],
 ) => {
   const query: Record<string, unknown> = {
     agentUserId: new Types.ObjectId(agentUserId),
@@ -1139,14 +1137,6 @@ const updatePatient = async (
   const patient = await AgentPatientModel.findOne(query);
   if (!patient) {
     throw new NotFoundError("Patient case not found");
-  }
-
-  // Handle new uploaded report files if any
-  if (files && files.length > 0) {
-    for (const file of files) {
-      const uploaded = await uploadToCloudinary(file.path, "patient_report");
-      patient.reports.push(uploaded.img_url);
-    }
   }
 
   // Handle subAgentId if provided
@@ -1263,11 +1253,11 @@ const updateAgentCommission = async (
   }
 
   // Commission can only be updated when patient case status is completed
-  if (patient.status !== PATIENT_CASE_STATUS.COMPLETED) {
-    throw new BadRequestError(
-      `Commission can only be updated when patient case status is '${PATIENT_CASE_STATUS.COMPLETED}'. Current status is '${patient.status}'.`,
-    );
-  }
+  // if (patient.status !== PATIENT_CASE_STATUS.COMPLETED) {
+  //   throw new BadRequestError(
+  //     `Commission can only be updated when patient case status is '${PATIENT_CASE_STATUS.COMPLETED}'. Current status is '${patient.status}'.`,
+  //   );
+  // }
 
   // If agentUserId is provided, verify it matches patient's assigned agentUserId
   if (payload.agentUserId) {
@@ -1347,12 +1337,12 @@ const updateSubAgentCommission = async (
     throw new NotFoundError("Patient case not found");
   }
 
-  // Commission can only be updated when patient case status is completed
-  if (patient.status !== PATIENT_CASE_STATUS.COMPLETED) {
-    throw new BadRequestError(
-      `Commission can only be updated when patient case status is '${PATIENT_CASE_STATUS.COMPLETED}'. Current status is '${patient.status}'.`,
-    );
-  }
+  // // Commission can only be updated when patient case status is completed
+  // if (patient.status !== PATIENT_CASE_STATUS.COMPLETED) {
+  //   throw new BadRequestError(
+  //     `Commission can only be updated when patient case status is '${PATIENT_CASE_STATUS.COMPLETED}'. Current status is '${patient.status}'.`,
+  //   );
+  // }
 
   // Check if patient case actually has a subAgentId assigned
   if (!patient.subAgentId) {
