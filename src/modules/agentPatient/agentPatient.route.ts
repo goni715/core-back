@@ -7,6 +7,7 @@ import {
   createAgentPatientValidationSchema,
   deleteAgentPatientValidationSchema,
   getAgentPatientsValidationSchema,
+  getAgentAllCommissionsValidationSchema,
   getAllPatientsByAdminValidationSchema,
   getSingleAgentPatientValidationSchema,
   updateAgentPatientValidationSchema,
@@ -55,6 +56,36 @@ router.get(
   AgentPatientController.getSubAgentCommissionStats,
 );
 
+/* ==================== All Commissions (Table with Pagination & Search) ==================== */
+router.get(
+  "/all-commissions/by-agent",
+  authMiddleware(USER_ROLES.AGENT),
+  validationMiddleware(getAgentAllCommissionsValidationSchema),
+  AgentPatientController.getAgentAllCommissions,
+);
+
+
+router.get(
+  "/all-commissions/by-sub-agent",
+  subAgentAuthMiddleware(),
+  validationMiddleware(getAgentAllCommissionsValidationSchema),
+  AgentPatientController.getSubAgentAllCommissionsByAgent,
+);
+
+router.get(
+  "/sub-agent-all-commissions",
+  subAgentAuthMiddleware(),
+  validationMiddleware(getAgentAllCommissionsValidationSchema),
+  AgentPatientController.getSubAgentAllCommissionsByAgent,
+);
+
+router.get(
+  "/sub-agent-all-commissions-by-agent",
+  subAgentAuthMiddleware(),
+  validationMiddleware(getAgentAllCommissionsValidationSchema),
+  AgentPatientController.getSubAgentAllCommissionsByAgent,
+);
+
 /* ==================== Get Patients List ==================== */
 // Agent sees their own submitted cases
 router.get(
@@ -90,18 +121,39 @@ router.get(
 /* ==================== Get Single Patient ==================== */
 // Retrieve patient case by MongoDB ID or Case ID (e.g. CS-XXXXXX)
 router.get(
+  "/get-patient/by-agent/:patientId",
+  authMiddleware(USER_ROLES.AGENT),
+  validationMiddleware(getSingleAgentPatientValidationSchema),
+  AgentPatientController.getPatientByAgent,
+);
+
+router.get(
+  "/get-patient/by-sub-agent/:patientId",
+  subAgentAuthMiddleware(),
+  validationMiddleware(getSingleAgentPatientValidationSchema),
+  AgentPatientController.getPatientBySubAgent,
+);
+
+router.get(
   "/get-patient/:patientId",
   authMiddleware(USER_ROLES.AGENT),
   validationMiddleware(getSingleAgentPatientValidationSchema),
-  AgentPatientController.getPatientById,
+  AgentPatientController.getPatientByAgent,
 );
 
 /* ==================== Update Patient Info ==================== */
 router.patch(
-  "/update-patient/:patientId",
+  "/update-patient/by-agent/:patientId",
   authMiddleware(USER_ROLES.AGENT),
   validationMiddleware(updateAgentPatientValidationSchema),
-  AgentPatientController.updatePatient,
+  AgentPatientController.updatePatientByAgent,
+);
+
+router.patch(
+  "/update-patient/by-sub-agent/:patientId",
+  subAgentAuthMiddleware(),
+  validationMiddleware(updateAgentPatientValidationSchema),
+  AgentPatientController.updatePatientBySubAgent,
 );
 
 /* ==================== Update Patient Case Status ==================== */

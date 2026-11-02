@@ -92,7 +92,15 @@ export const updateStatusValidationSchema = z.object({
 
 export const getSingleAgentPatientValidationSchema = z.object({
   params: z.object({
-    patientId: patientIdZodSchema,
+    patientId: z
+      .string({
+        error: (issue) =>
+          issue.input === undefined
+            ? "patientId is required"
+            : "patientId must be a string",
+      })
+      .trim()
+      .min(1, "patientId is required"),
   }),
 });
 
@@ -114,6 +122,18 @@ export const getAgentPatientsValidationSchema = z.object({
     subAgentId: z.string().optional(),
     subAgent: z.string().optional(),
     status: enumSchema("status", PATIENT_CASE_STATUS_VALUES).optional(),
+  }),
+});
+
+export const getAgentAllCommissionsValidationSchema = z.object({
+  query: z.object({
+    searchTerm: z.string().optional(),
+    paymentStatus: z.string().optional(),
+    status: z.string().optional(),
+    page: z.string().optional(),
+    limit: z.string().optional(),
+    sortBy: z.string().optional(),
+    sortOrder: z.enum(["asc", "desc"]).optional(),
   }),
 });
 

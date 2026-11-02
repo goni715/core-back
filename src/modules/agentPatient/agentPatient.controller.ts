@@ -160,12 +160,55 @@ const getSubAgentCommissionStats = asyncHandler(
   },
 );
 
-/* ==================== Get Single Patient Case ==================== */
-const getPatientById = asyncHandler(async (req: Request, res: Response) => {
-  const { userId } = req.headers;
+/* ==================== Get Agent All Commissions ==================== */
+const getAgentAllCommissions = asyncHandler(
+  async (req: Request, res: Response) => {
+    const userId = (req as any).user?.userId || (req.headers.userId as string);
+    const validatedQuery = (req as any).validatedQuery || req.query;
+
+    const result = await AgentPatientService.getAgentAllCommissions(
+      userId as string,
+      validatedQuery,
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Agent commissions retrieved successfully",
+      meta: result.meta,
+      statusCounts: result.statusCounts,
+      data: result.data,
+    });
+  },
+);
+
+/* ==================== Get Sub-Agent All Commissions ==================== */
+const getSubAgentAllCommissionsByAgent = asyncHandler(
+  async (req: Request, res: Response) => {
+    const userId = (req as any).user?.userId || (req.headers.userId as string);
+    const validatedQuery = (req as any).validatedQuery || req.query;
+
+    const result = await AgentPatientService.getSubAgentAllCommissionsByAgent(
+      userId as string,
+      validatedQuery,
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Sub-agent commissions retrieved successfully",
+      meta: result.meta,
+      statusCounts: result.statusCounts,
+      data: result.data,
+    });
+  },
+);
+
+/* ==================== Get Single Patient Case By Agent ==================== */
+const getPatientByAgent = asyncHandler(async (req: Request, res: Response) => {
+  const userId =
+    (req as any).user?.userId || (req.headers.userId as string);
   const { patientId } = req.params;
 
-  const result = await AgentPatientService.getPatientById(
+  const result = await AgentPatientService.getPatientByAgent(
     patientId as string,
     userId as string,
   );
@@ -177,12 +220,50 @@ const getPatientById = asyncHandler(async (req: Request, res: Response) => {
   });
 });
 
+/* ==================== Get Single Patient Case By Sub Agent ==================== */
+const getPatientBySubAgent = asyncHandler(async (req: Request, res: Response) => {
+  const userId =
+    (req as any).user?.userId || (req.headers.userId as string);
+  const { patientId } = req.params;
+
+  const result = await AgentPatientService.getPatientBySubAgent(
+    patientId as string,
+    userId as string,
+  );
+
+  res.status(200).json({
+    success: true,
+    message: "Patient case retrieved successfully",
+    data: result,
+  });
+});
+
+const getPatientById = getPatientByAgent;
+
 /* ==================== Update Patient Case ==================== */
-const updatePatient = asyncHandler(async (req: Request, res: Response) => {
+const updatePatientByAgent = asyncHandler(async (req: Request, res: Response) => {
   const { userId } = req.headers;
   const { patientId } = req.params;
 
-  const result = await AgentPatientService.updatePatient(
+  const result = await AgentPatientService.updatePatientByAgent(
+    patientId as string,
+    userId as string,
+    req.body,
+  );
+
+  res.status(200).json({
+    success: true,
+    message: "Patient case updated successfully",
+    data: result,
+  });
+});
+
+/* ==================== Update Patient Case ==================== */
+const updatePatientBySubAgent = asyncHandler(async (req: Request, res: Response) => {
+  const { userId } = req.headers;
+  const { patientId } = req.params;
+
+  const result = await AgentPatientService.updatePatientBySubAgent(
     patientId as string,
     userId as string,
     req.body,
@@ -368,8 +449,13 @@ const AgentPatientController = {
   getStatusStats,
   getAgentCommissionStats,
   getSubAgentCommissionStats,
+  getAgentAllCommissions,
+  getSubAgentAllCommissionsByAgent,
   getPatientById,
-  updatePatient,
+  getPatientByAgent,
+  getPatientBySubAgent,
+  updatePatientByAgent,
+  updatePatientBySubAgent,
   updatePatientStatus,
   deletePatient,
   updateAgentCommission,

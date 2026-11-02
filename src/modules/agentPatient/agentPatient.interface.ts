@@ -115,3 +115,20 @@ export type TPatientStatusCounts = {
   completed: number;
   cancelled: number;
 };
+
+export type TCommissionStatusCounts = {
+  all: number;
+  pending: number;
+  paid: number;
+  unpaid?: number;
+};
+
+export type TCommissionPatientQuery = {
+  searchTerm?: string;
+  paymentStatus?: TCommissionPaymentStatus | "all";
+  status?: TCommissionPaymentStatus | "all";
+  page?: string | number;
+  limit?: string | number;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
+};
