@@ -4,20 +4,23 @@ import ConflictError from "../../errors/ConflictError";
 import ForbiddenError from "../../errors/ForbiddenError";
 import NotFoundError from "../../errors/NotFoundError";
 import { makeFilterQuery, makeSearchQuery } from "../../helpers/QueryBuilder";
-import { USER_ROLES } from "../user/user.constant";
+import { ACCOUNT_STATUS, USER_ROLES } from "../user/user.constant";
 import UserModel from "../user/user.model";
 import {
   SCHEDULE_DAYS,
   SCHEDULE_SEARCHABLE_FIELDS,
 } from "./schedule.constant";
 import {
-  ISchedule,
   TCreateSchedulePayload,
   TScheduleDay,
   TScheduleQuery,
   TUpdateSchedulePayload,
 } from "./schedule.interface";
 import ScheduleModel from "./schedule.model";
+import createDateTimeFromTime, {
+  normalizeTimeTo24Hour,
+} from "../../utils/createDateTimeFromTime";
+import formatTime12Hour from "../../utils/formatTime12Hour";
 
 // Day ordering helper (Sat -> Fri)
 const DAY_ORDER: Record<TScheduleDay, number> = {
@@ -30,9 +33,10 @@ const DAY_ORDER: Record<TScheduleDay, number> = {
   [SCHEDULE_DAYS.FRI]: 6,
 };
 
-// Convert HH:mm to minutes since midnight
+// Convert HH:mm or hh:mm AM/PM to minutes since midnight
 const timeToMinutes = (time: string): number => {
-  const parts = time.split(":").map(Number);
+  const normalized = normalizeTimeTo24Hour(time);
+  const parts = normalized.split(":").map(Number);
   const hours = parts[0] ?? 0;
   const minutes = parts[1] ?? 0;
   return hours * 60 + minutes;
@@ -49,7 +53,17 @@ const isTimeOverlapping = (
   const e1 = timeToMinutes(end1);
   const s2 = timeToMinutes(start2);
   const e2 = timeToMinutes(end2);
+
   return s1 < e2 && e1 > s2;
+};
+
+// Helper to verify that minutes are strictly divisible by 5 (00, 05, ..., 55)
+const isFiveMinuteInterval = (time: string): boolean => {
+  if (!time) return true;
+  const cleanTime = time.replace(/\s*(am|pm)/i, "").trim();
+  const parts = cleanTime.split(":");
+  const minutes = parseInt(parts[1] || "", 10);
+  return !isNaN(minutes) && minutes % 5 === 0;
 };
 
 /*========== Create Schedule (Doctor Only - Own Schedule) ==========*/
@@ -68,9 +82,23 @@ const createSchedule = async (
   }
 
   // Validate start time is before end time
-  if (payload.startTime >= payload.endTime) {
+  if (timeToMinutes(payload.startTime) >= timeToMinutes(payload.endTime)) {
     throw new BadRequestError("startTime must be earlier than endTime");
   }
+
+  // Validate minutes are strictly in 5-minute intervals (00, 05, 10, ..., 55)
+  if (
+    !isFiveMinuteInterval(payload.startTime) ||
+    !isFiveMinuteInterval(payload.endTime)
+  ) {
+    throw new BadRequestError(
+      "startTime and endTime minutes must be in 5-minute intervals (00, 05, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55)",
+    );
+  }
+
+  // Format times to 12-hour format for database storage
+  const formattedStartTime = formatTime12Hour(payload.startTime);
+  const formattedEndTime = formatTime12Hour(payload.endTime);
 
   // Check for overlapping schedule for the doctor on the same day
   const existingSchedules = await ScheduleModel.find({
@@ -81,27 +109,36 @@ const createSchedule = async (
   for (const existing of existingSchedules) {
     if (
       isTimeOverlapping(
-        payload.startTime,
-        payload.endTime,
+        formattedStartTime,
+        formattedEndTime,
         existing.startTime,
         existing.endTime,
       )
     ) {
       throw new ConflictError(
-        `Schedule overlaps with an existing schedule (${existing.startTime} - ${existing.endTime}) on ${payload.day}`,
+        `Schedule overlaps with an existing schedule (${formatTime12Hour(existing.startTime)} - ${formatTime12Hour(existing.endTime)}) on ${payload.day}`,
       );
     }
   }
 
+  const startDateTime = createDateTimeFromTime(payload.startTime);
+  const endDateTime = createDateTimeFromTime(payload.endTime);
+
   const result = await ScheduleModel.create({
     ...payload,
+    startTime: formattedStartTime,
+    endTime: formattedEndTime,
     doctorUserId: new Types.ObjectId(doctorUserId),
+    startDateTime,
+    endDateTime,
   });
 
-  return await ScheduleModel.findById(result._id).populate({
-    path: "doctorUserId",
-    select: "fullName email phone profileImg",
-  });
+  const created = result.toObject();
+  return {
+    ...created,
+    startTime: formatTime12Hour(created.startTime),
+    endTime: formatTime12Hour(created.endTime),
+  };
 };
 
 /*========== Get My Schedules (Doctor) ==========*/
@@ -123,12 +160,21 @@ const getMySchedules = async (
     })
     .lean();
 
-  // Sort by day order then startTime
-  return schedules.sort((a, b) => {
+  // Sort by day order then chronological time
+  const sorted = schedules.sort((a, b) => {
     const dayDiff = DAY_ORDER[a.day] - DAY_ORDER[b.day];
     if (dayDiff !== 0) return dayDiff;
-    return a.startTime.localeCompare(b.startTime);
+    if (a.startDateTime && b.startDateTime) {
+      return new Date(a.startDateTime).getTime() - new Date(b.startDateTime).getTime();
+    }
+    return timeToMinutes(a.startTime) - timeToMinutes(b.startTime);
   });
+
+  return sorted.map((s) => ({
+    ...s,
+    startTime: formatTime12Hour(s.startTime),
+    endTime: formatTime12Hour(s.endTime),
+  }));
 };
 
 /*========== Get Doctor Schedules (Public / Patient) ==========*/
@@ -160,43 +206,54 @@ const getDoctorSchedules = async (
     })
     .lean();
 
-  return schedules.sort((a, b) => {
+  const sorted = schedules.sort((a, b) => {
     const dayDiff = DAY_ORDER[a.day] - DAY_ORDER[b.day];
     if (dayDiff !== 0) return dayDiff;
-    return a.startTime.localeCompare(b.startTime);
+    if (a.startDateTime && b.startDateTime) {
+      return new Date(a.startDateTime).getTime() - new Date(b.startDateTime).getTime();
+    }
+    return timeToMinutes(a.startTime) - timeToMinutes(b.startTime);
   });
+
+  return sorted.map((s) => ({
+    ...s,
+    startTime: formatTime12Hour(s.startTime),
+    endTime: formatTime12Hour(s.endTime),
+  }));
 };
 
 /*========== Get Single Schedule ==========*/
 const getSingleSchedule = async (scheduleId: string) => {
-  const schedule = await ScheduleModel.findById(scheduleId).populate({
-    path: "doctorUserId",
-    select: "fullName email phone profileImg",
-  });
+  const schedule = await ScheduleModel.findById(scheduleId)
+    .populate({
+      path: "doctorUserId",
+      select: "fullName email phone profileImg",
+    })
+    .lean();
 
   if (!schedule) {
     throw new NotFoundError("Schedule not found with the provided ID");
   }
 
-  return schedule;
+  return {
+    ...schedule,
+    startTime: formatTime12Hour(schedule.startTime),
+    endTime: formatTime12Hour(schedule.endTime),
+  };
 };
 
-/*========== Get All Schedules (Admin / Search) ==========*/
-const getAllSchedules = async (query: TScheduleQuery) => {
+/*========== get doctor own schedules ==========*/
+const getAllSchedules = async (doctorUserId: string, query: TScheduleQuery) => {
   const {
     searchTerm,
     page = 1,
     limit = 10,
     sortBy = "createdAt",
     sortOrder = "desc",
-    doctorUserId,
-    day,
-    isActive,
     ...filters
   } = query;
 
   const skip = (Number(page) - 1) * Number(limit);
-  const sortDirection = sortOrder === "asc" ? 1 : -1;
 
   let searchQuery = {};
   if (searchTerm) {
@@ -208,77 +265,31 @@ const getAllSchedules = async (query: TScheduleQuery) => {
     filterQuery = makeFilterQuery(filters);
   }
 
-  if (doctorUserId) {
-    filterQuery.doctorUserId = new Types.ObjectId(doctorUserId);
-  }
-
-  if (day) {
-    filterQuery.day = day;
-  }
-
-  if (typeof isActive === "boolean") {
-    filterQuery.isActive = isActive;
-  }
-
   const commonPipeline: PipelineStage[] = [
     {
       $match: {
+        doctorUserId: new Types.ObjectId(doctorUserId),
         ...searchQuery,
         ...filterQuery,
       },
     },
-    {
-      $lookup: {
-        from: "users",
-        localField: "doctorUserId",
-        foreignField: "_id",
-        as: "doctorUser",
-      },
-    },
-    { $unwind: "$doctorUser" },
-    {
-      $lookup: {
-        from: "doctors",
-        localField: "doctorUserId",
-        foreignField: "userId",
-        as: "doctorProfile",
-      },
-    },
-    {
-      $unwind: {
-        path: "$doctorProfile",
-        preserveNullAndEmptyArrays: true,
-      },
-    },
-    {
-      $project: {
-        _id: 1,
-        doctorUserId: 1,
-        day: 1,
-        startTime: 1,
-        endTime: 1,
-        isActive: 1,
-        createdAt: 1,
-        updatedAt: 1,
-        doctor: {
-          fullName: "$doctorUser.fullName",
-          email: "$doctorUser.email",
-          phone: "$doctorUser.phone",
-          profileImg: "$doctorUser.profileImg",
-          title: "$doctorProfile.title",
-          specialization: "$doctorProfile.specialization",
-          hospital: "$doctorProfile.hospital",
-          designation: "$doctorProfile.designation",
-        },
-      },
-    },
   ];
+
 
   const result = await ScheduleModel.aggregate([
     ...commonPipeline,
-    { $sort: { [sortBy]: sortDirection } },
+    { $sort: { startDateTime: 1, endDateTime: 1 } },
     { $skip: skip },
     { $limit: Number(limit) },
+    {
+      $project: {
+        _id: 1,
+        startTime: 1,
+        endTime: 1,
+        day: 1,
+        isActive: 1,
+      }
+    }
   ]);
 
   const totalCountResult = await ScheduleModel.aggregate([
@@ -300,6 +311,50 @@ const getAllSchedules = async (query: TScheduleQuery) => {
   };
 };
 
+/*========== Get Doctor's Schedule by Day ==========*/
+const getDoctorSchedulesByDay = async (doctorUserId: string, day: TScheduleDay) => {
+  //check doctor
+  const doctorUser = await UserModel.findOne({
+    _id: doctorUserId,
+    role: USER_ROLES.DOCTOR
+  });
+
+  if (!doctorUser) {
+    throw new NotFoundError("Doctor user not found");
+  }
+
+  if (doctorUser.status !== ACCOUNT_STATUS.ACTIVE) {
+    throw new ForbiddenError("Doctor is not active");
+  }
+
+
+  const pipeline: PipelineStage[] = [
+    {
+      $match: {
+        doctorUserId: new Types.ObjectId(doctorUserId),
+        day,
+        isActive: true,
+      }
+    },
+    {
+      $sort: {
+        startDateTime: 1,
+        endDateTime: 1
+      },
+    },
+    {
+      $project: {
+        _id: 1,
+        startTime: 1,
+        endTime: 1,
+      },
+    },
+  ];
+
+  const schedules = await ScheduleModel.aggregate(pipeline);
+  return schedules;
+};
+
 /*========== Update Schedule (Doctor Only - Own Schedule) ==========*/
 const updateSchedule = async (
   scheduleId: string,
@@ -316,12 +371,19 @@ const updateSchedule = async (
     throw new ForbiddenError("You are only authorized to update your own schedule");
   }
 
+  const formattedStartTime = payload.startTime
+    ? formatTime12Hour(payload.startTime)
+    : undefined;
+  const formattedEndTime = payload.endTime
+    ? formatTime12Hour(payload.endTime)
+    : undefined;
+
   const targetDay = payload.day || schedule.day;
-  const targetStartTime = payload.startTime || schedule.startTime;
-  const targetEndTime = payload.endTime || schedule.endTime;
+  const targetStartTime = formattedStartTime || schedule.startTime;
+  const targetEndTime = formattedEndTime || schedule.endTime;
 
   // Validate start time is before end time
-  if (targetStartTime >= targetEndTime) {
+  if (timeToMinutes(targetStartTime) >= timeToMinutes(targetEndTime)) {
     throw new BadRequestError("startTime must be earlier than endTime");
   }
 
@@ -343,31 +405,85 @@ const updateSchedule = async (
         )
       ) {
         throw new ConflictError(
-          `Schedule overlaps with an existing schedule (${existing.startTime} - ${existing.endTime}) on ${targetDay}`,
+          `Schedule overlaps with an existing schedule (${formatTime12Hour(existing.startTime)} - ${formatTime12Hour(existing.endTime)}) on ${targetDay}`,
         );
       }
     }
   }
 
+  const updateData: Record<string, unknown> = {
+    ...payload,
+  };
+
+  if (formattedStartTime) {
+    updateData.startTime = formattedStartTime;
+    updateData.startDateTime = createDateTimeFromTime(formattedStartTime);
+  }
+  if (formattedEndTime) {
+    updateData.endTime = formattedEndTime;
+    updateData.endDateTime = createDateTimeFromTime(formattedEndTime);
+  }
+
   const updatedSchedule = await ScheduleModel.findByIdAndUpdate(
     scheduleId,
-    payload,
+    updateData,
     {
       new: true,
       runValidators: true,
     },
-  ).populate({
-    path: "doctorUserId",
-    select: "fullName email phone profileImg",
-  });
+  )
+    .populate({
+      path: "doctorUserId",
+      select: "fullName email phone profileImg",
+    })
+    .lean();
 
-  return updatedSchedule;
+  if (!updatedSchedule) return null;
+
+  return {
+    ...updatedSchedule,
+    startTime: formatTime12Hour(updatedSchedule.startTime),
+    endTime: formatTime12Hour(updatedSchedule.endTime),
+  };
+};
+
+/*========== Update Schedule (Doctor Only - Own Schedule) ==========*/
+const updateScheduleStatus = async (
+  doctorUserId: string,
+  scheduleId: string,
+  payload: { isActive: boolean },
+) => {
+  const schedule = await ScheduleModel.findById(scheduleId);
+  if (!schedule) {
+    throw new NotFoundError("Schedule not found with the provided ID");
+  }
+
+  // Doctor can only update their own schedule
+  if (schedule.doctorUserId.toString() !== doctorUserId) {
+    throw new ForbiddenError("You are only authorized to update your own schedule");
+  }
+
+  //check status
+  if (schedule.isActive === payload.isActive) {
+    throw new ConflictError(`This schedule is already ${payload.isActive ? 'active' : 'inactive'}.`);
+  }
+
+  const result = await ScheduleModel.updateOne(
+    {
+      _id: scheduleId,
+      doctorUserId
+    },
+    payload
+  )
+
+  return result;
+
 };
 
 /*========== Delete Schedule (Doctor Only - Own Schedule) ==========*/
 const deleteSchedule = async (
-  scheduleId: string,
   doctorUserId: string,
+  scheduleId: string,
 ) => {
   const schedule = await ScheduleModel.findById(scheduleId);
   if (!schedule) {
@@ -379,8 +495,11 @@ const deleteSchedule = async (
     throw new ForbiddenError("You are only authorized to delete your own schedule");
   }
 
-  await ScheduleModel.findByIdAndDelete(scheduleId);
-  return schedule;
+  const result = await ScheduleModel.deleteOne({
+    _id: scheduleId,
+    doctorUserId
+  })
+  return result;
 };
 
 const ScheduleService = {
@@ -388,8 +507,10 @@ const ScheduleService = {
   getMySchedules,
   getDoctorSchedules,
   getSingleSchedule,
+  getDoctorSchedulesByDay,
   getAllSchedules,
   updateSchedule,
+  updateScheduleStatus,
   deleteSchedule,
 };
 

@@ -8,6 +8,8 @@ export interface ISchedule extends Document {
   day: TScheduleDay;
   startTime: string; // e.g., "09:00"
   endTime: string;   // e.g., "17:00"
+  startDateTime: Date; // Anchor date: 2026-01-01 + startTime
+  endDateTime: Date;   // Anchor date: 2026-01-01 + endTime
   isActive: boolean;
   createdAt?: Date;
   updatedAt?: Date;
@@ -36,4 +38,8 @@ export type TScheduleQuery = {
   doctorUserId?: string;
   day?: TScheduleDay;
   isActive?: boolean | string;
+  startTime?: string;
+  endTime?: string;
+  startDateTime?: string | Date;
+  endDateTime?: string | Date;
 };

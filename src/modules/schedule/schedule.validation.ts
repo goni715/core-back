@@ -5,14 +5,28 @@ import { enumSchema } from "../../schemas/enum.schema";
 import { booleanSchema } from "../../schemas/boolean.schema";
 import { booleanQuerySchema } from "../../schemas/global.schema";
 import { SCHEDULE_DAYS_VALUES } from "./schedule.constant";
+import { normalizeTimeTo24Hour } from "../../utils/createDateTimeFromTime";
+import objectIdSchema from "../../schemas/objectId.schema";
 
-// 24-hour format: HH:mm (00:00 - 23:59)
-const timeRegex = /^([01]\d|2[0-3]):[0-5]\d$/;
+// 24-hour format: HH:mm (00:00 - 23:55) or 12-hour format: hh:mm AM/PM, minutes strictly in 5-minute intervals (00, 05, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55)
+const timeRegex = /^([01]?\d|2[0-3]):[0-5][05](\s?[AaPp][Mm])?$/;
 
 const timeSchema = (fieldName: string) =>
-  requiredStringSchema(fieldName).regex(timeRegex, {
-    message: `${fieldName} must be in 24-hour HH:mm format (e.g. '09:00', '17:30')`,
-  });
+  requiredStringSchema(fieldName)
+    .regex(timeRegex, {
+      message: `${fieldName} must be in valid format (e.g. '10:00' or '10:00 AM') and minutes must be in 5-minute intervals (00, 05, 10, 15, ..., 55)`,
+    })
+    .refine(
+      (val) => {
+        const cleanTime = val.replace(/\s*(am|pm)/i, "").trim();
+        const parts = cleanTime.split(":");
+        const minutes = parseInt(parts[1] || "", 10);
+        return !isNaN(minutes) && minutes % 5 === 0;
+      },
+      {
+        message: `${fieldName} minutes must be in full 5-minute intervals (00, 05, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55)`,
+      },
+    );
 
 const optionalTimeSchema = (fieldName: string) =>
   z
@@ -23,16 +37,23 @@ const optionalTimeSchema = (fieldName: string) =>
           : `${fieldName} must be a string`,
     })
     .regex(timeRegex, {
-      message: `${fieldName} must be in 24-hour HH:mm format (e.g. '09:00', '17:30')`,
+      message: `${fieldName} must be in valid format (e.g. '10:00' or '10:00 AM') and minutes must be in 5-minute intervals (00, 05, 10, 15, ..., 55)`,
     })
+    .refine(
+      (val) => {
+        if (!val) return true;
+        const cleanTime = val.replace(/\s*(am|pm)/i, "").trim();
+        const parts = cleanTime.split(":");
+        const minutes = parseInt(parts[1] || "", 10);
+        return !isNaN(minutes) && minutes % 5 === 0;
+      },
+      {
+        message: `${fieldName} minutes must be in full 5-minute intervals (00, 05, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55)`,
+      },
+    )
     .optional();
 
-const scheduleIdZodSchema = requiredStringSchema("scheduleId").refine(
-  (id) => isObjectId(id),
-  {
-    message: "scheduleId must be a valid ObjectId",
-  },
-);
+const scheduleIdZodSchema = objectIdSchema("scheduleId");
 
 const doctorUserIdZodSchema = z
   .string()
@@ -49,7 +70,7 @@ export const createScheduleValidationSchema = z.object({
       endTime: timeSchema("endTime"),
       isActive: booleanSchema("isActive").optional(),
     })
-    .refine((data) => data.startTime < data.endTime, {
+    .refine((data) => normalizeTimeTo24Hour(data.startTime) < normalizeTimeTo24Hour(data.endTime), {
       message: "startTime must be before endTime",
       path: ["endTime"],
     }),
@@ -64,7 +85,6 @@ export const updateScheduleValidationSchema = z.object({
       day: enumSchema("day", SCHEDULE_DAYS_VALUES).optional(),
       startTime: optionalTimeSchema("startTime"),
       endTime: optionalTimeSchema("endTime"),
-      isActive: booleanSchema("isActive").optional(),
     })
     .refine(
       (data) => Object.values(data).some((val) => val !== undefined),
@@ -76,7 +96,10 @@ export const updateScheduleValidationSchema = z.object({
     .refine(
       (data) => {
         if (data.startTime && data.endTime) {
-          return data.startTime < data.endTime;
+          return (
+            normalizeTimeTo24Hour(data.startTime) <
+            normalizeTimeTo24Hour(data.endTime)
+          );
         }
         return true;
       },
@@ -87,9 +110,26 @@ export const updateScheduleValidationSchema = z.object({
     ),
 });
 
+export const updateScheduleStatusValidationSchema = z.object({
+  params: z.object({
+    scheduleId: scheduleIdZodSchema,
+  }),
+  body: z
+    .object({
+      isActive: booleanSchema("isActive"),
+    })
+});
+
 export const getSingleScheduleValidationSchema = z.object({
   params: z.object({
     scheduleId: scheduleIdZodSchema,
+  }),
+});
+
+export const getDoctorSchedulesByDayValidationSchema = z.object({
+  params: z.object({
+    day: enumSchema("day", SCHEDULE_DAYS_VALUES),
+    doctorUserId: objectIdSchema("doctorUserId"),
   }),
 });
 
@@ -115,7 +155,6 @@ export const getSchedulesValidationSchema = z.object({
     limit: z.string().optional(),
     sortBy: z.string().optional(),
     sortOrder: enumSchema("sortOrder", ["asc", "desc"]).optional(),
-    doctorUserId: doctorUserIdZodSchema,
     day: enumSchema("day", SCHEDULE_DAYS_VALUES).optional(),
     isActive: booleanQuerySchema("isActive").optional(),
   }),

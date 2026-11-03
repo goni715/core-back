@@ -6,9 +6,11 @@ import ScheduleController from "./schedule.controller";
 import {
   createScheduleValidationSchema,
   deleteScheduleValidationSchema,
+  getDoctorSchedulesByDayValidationSchema,
   getDoctorSchedulesValidationSchema,
   getSchedulesValidationSchema,
   getSingleScheduleValidationSchema,
+  updateScheduleStatusValidationSchema,
   updateScheduleValidationSchema,
 } from "./schedule.validation";
 
@@ -36,10 +38,10 @@ router.get(
   ScheduleController.getDoctorSchedules,
 );
 
-/* Admin: Get all schedules with pagination, filters and search */
+/* Doctor: Get all schedules with pagination, filters and search */
 router.get(
-  "/get-schedules",
-  authMiddleware(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN),
+  "/all-schedules",
+  authMiddleware(USER_ROLES.DOCTOR),
   validationMiddleware(getSchedulesValidationSchema),
   ScheduleController.getAllSchedules,
 );
@@ -51,12 +53,18 @@ router.get(
   ScheduleController.getSingleSchedule,
 );
 
-/* Doctor: Update own schedule */
+router.get(
+  "/doctor-schedules/:doctorUserId/:day",
+  validationMiddleware(getDoctorSchedulesByDayValidationSchema),
+  ScheduleController.getDoctorSchedulesByDay,
+);
+
+/* Doctor: Update own schedule status */
 router.patch(
-  "/update-schedule/:scheduleId",
+  "/update-schedule-status/:scheduleId",
   authMiddleware(USER_ROLES.DOCTOR),
-  validationMiddleware(updateScheduleValidationSchema),
-  ScheduleController.updateSchedule,
+  validationMiddleware(updateScheduleStatusValidationSchema),
+  ScheduleController.updateScheduleStatus,
 );
 
 /* Doctor: Delete own schedule */

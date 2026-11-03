@@ -468,6 +468,7 @@ const getPublishedDoctors = async (query: TPublishedDoctorQuery) => {
     {
       $project: {
         _id: 1,
+        userId:1,
         title: "$title",
         fullName: "$fullName",
         email: "$email",
