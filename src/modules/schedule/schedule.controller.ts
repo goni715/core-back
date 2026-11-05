@@ -87,7 +87,7 @@ const getAllSchedules = asyncHandler(async (req, res) => {
 
   res.status(200).json({
     success: true,
-    message: "Schedules retrieved successfully",
+    message: "Schedules are retrieved successfully",
     meta: result.meta,
     data: result.data,
   });

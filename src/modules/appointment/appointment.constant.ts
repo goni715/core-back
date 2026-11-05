@@ -27,3 +27,10 @@ export const APPOINTMENT_SEARCHABLE_FIELDS = [
   "appointmentCode"
 ];
 
+export const PATIENT_OWN_APPOINTMENT_SEARCHABLE_FIELDS = [
+  "appointmentCode",
+  "doctorName",
+  "doctorEmail",
+  "doctorPhone",
+];
+

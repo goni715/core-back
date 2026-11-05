@@ -6,10 +6,10 @@ import AppointmentController from "./appointment.controller";
 import {
   bookAppointmentValidationSchema,
   getAllAppointmentsValidationSchema,
-  getDoctorAppointmentsValidationSchema,
   getSingleAppointmentValidationSchema,
   updateAppointmentStatusValidationSchema,
   getMyAppointmentsValidationSchema,
+  bookAppointmentByLoginPatientValidationSchema,
 } from "./appointment.validation";
 
 const router = express.Router();
@@ -21,6 +21,14 @@ router.post(
   AppointmentController.bookAppointment,
 );
 
+/* Public / Log in patient: Book appointment */
+router.post(
+  "/book-appointment-by-login-patient",
+  authMiddleware(USER_ROLES.PATIENT),
+  validationMiddleware(bookAppointmentByLoginPatientValidationSchema),
+  AppointmentController.bookAppointmentByLoginPatient,
+);
+
 /* Doctor: Get own appointments */
 router.get(
   "/my-appointments",
@@ -29,28 +37,19 @@ router.get(
   AppointmentController.getMyAppointments,
 );
 
+router.get(
+  "/patient-own-appointments",
+  authMiddleware(USER_ROLES.PATIENT),
+  validationMiddleware(getMyAppointmentsValidationSchema),
+  AppointmentController.getPatientOwnAppointments,
+);
+
 /* Admin: Get all appointments with pagination, filters and search */
 router.get(
   "/all-appointments",
   authMiddleware(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN),
   validationMiddleware(getAllAppointmentsValidationSchema),
   AppointmentController.getAllAppointments,
-);
-
-/* Doctor / Admin: Get appointments of a specific doctor */
-router.get(
-  "/doctor/:doctorUserId",
-  authMiddleware(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN, USER_ROLES.DOCTOR),
-  validationMiddleware(getDoctorAppointmentsValidationSchema),
-  AppointmentController.getDoctorAppointments,
-);
-
-
-/* Get single appointment by ID */
-router.get(
-  "/single-appointment/:appointmentId",
-  validationMiddleware(getSingleAppointmentValidationSchema),
-  AppointmentController.getSingleAppointment,
 );
 
 /* Doctor / Admin: Update appointment status (confirm, complete, cancel) */
@@ -67,6 +66,12 @@ router.delete(
   authMiddleware(USER_ROLES.DOCTOR, USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN),
   validationMiddleware(getSingleAppointmentValidationSchema),
   AppointmentController.deleteAppointment,
+);
+
+router.get(
+  "/stats",
+  authMiddleware(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN),
+  AppointmentController.getAppointmentStats,
 );
 
 const AppointmentRoutes = router;

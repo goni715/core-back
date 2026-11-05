@@ -60,6 +60,16 @@ export const bookAppointmentValidationSchema = z.object({
   }),
 });
 
+export const bookAppointmentByLoginPatientValidationSchema = z.object({
+  body: z.object({
+    scheduleId: objectIdSchema("scheduleId"),
+    appointmentDate: appointmentDateZodSchema,
+    problem: requiredStringSchema("problem"),
+    bloodGroup: enumSchema("bloodGroup", BLOOD_GROUP_VALUES).optional(),
+    dateOfBirth: dateSchema("dateOfBirth").optional(),
+  }),
+});
+
 export const updateAppointmentStatusValidationSchema = z.object({
   params: z.object({
     appointmentId: appointmentIdZodSchema,

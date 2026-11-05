@@ -13,6 +13,18 @@ const bookAppointment = asyncHandler(async (req: Request, res: Response) => {
   });
 });
 
+/*========== Book Appointment by login patient ==========*/
+const bookAppointmentByLoginPatient = asyncHandler(async (req: Request, res: Response) => {
+  const { userId } = req.headers;
+  const result = await AppointmentService.bookAppointmentByLoginPatient(userId as string, req.body);
+
+  res.status(201).json({
+    success: true,
+    message: "Appointment booked successfully",
+    data: result,
+  });
+});
+
 /*========== Get My Appointments (Doctor) ==========*/
 const getMyAppointments = asyncHandler(async (req: Request, res: Response) => {
   const { userId } = req.headers;
@@ -20,6 +32,24 @@ const getMyAppointments = asyncHandler(async (req: Request, res: Response) => {
 
   const result = await AppointmentService.getMyAppointments(
     userId as string,
+    validatedQuery,
+  );
+
+  res.status(200).json({
+    success: true,
+    message: "My appointments are retrieved successfully",
+    meta: result.meta,
+    data: result.data,
+  });
+});
+
+/*========== Get Patient Own Appointments (Patient) ==========*/
+const getPatientOwnAppointments = asyncHandler(async (req: Request, res: Response) => {
+  const { email } = req.headers;
+  const validatedQuery = (req as any).validatedQuery;
+
+  const result = await AppointmentService.getPatientOwnAppointments(
+    email as string,
     validatedQuery,
   );
 
@@ -43,43 +73,6 @@ const getAllAppointments = asyncHandler(async (req: Request, res: Response) => {
     data: result.data,
   });
 });
-
-/*========== Get Doctor Appointments (By Doctor ID) ==========*/
-const getDoctorAppointments = asyncHandler(
-  async (req: Request, res: Response) => {
-    const { doctorUserId } = req.params;
-    const validatedQuery = (req as any).validatedQuery || req.query;
-
-    const result = await AppointmentService.getDoctorAppointments(
-      doctorUserId as string,
-      validatedQuery,
-    );
-
-    res.status(200).json({
-      success: true,
-      message: "Doctor appointments retrieved successfully",
-      meta: result.meta,
-      data: result.data,
-    });
-  },
-);
-
-
-/*========== Get Single Appointment ==========*/
-const getSingleAppointment = asyncHandler(
-  async (req: Request, res: Response) => {
-    const { appointmentId } = req.params;
-    const result = await AppointmentService.getSingleAppointment(
-      appointmentId as string,
-    );
-
-    res.status(200).json({
-      success: true,
-      message: "Appointment retrieved successfully",
-      data: result,
-    });
-  },
-);
 
 /*========== Update Appointment Status (Doctor / Admin) ==========*/
 const updateAppointmentStatus = asyncHandler(
@@ -124,14 +117,27 @@ const deleteAppointment = asyncHandler(async (req: Request, res: Response) => {
   });
 });
 
+
+/*========== get appointmentStats (Admin) ==========*/
+const getAppointmentStats = asyncHandler(async (req: Request, res: Response) => {
+  const result = await AppointmentService.getAppointmentStats();
+
+  res.status(200).json({
+    success: true,
+    message: "Appointment stats retrieved successfully",
+    data: result,
+  });
+});
+
 const AppointmentController = {
   bookAppointment,
+  bookAppointmentByLoginPatient,
   getMyAppointments,
-  getDoctorAppointments,
+  getPatientOwnAppointments,
   getAllAppointments,
-  getSingleAppointment,
   updateAppointmentStatus,
   deleteAppointment,
+  getAppointmentStats
 };
 
 export default AppointmentController;

@@ -1,5 +1,4 @@
 import { PipelineStage, Types } from "mongoose";
-import BadRequestError from "../../errors/BadRequestError";
 import ConflictError from "../../errors/ConflictError";
 import ForbiddenError from "../../errors/ForbiddenError";
 import NotFoundError from "../../errors/NotFoundError";
@@ -9,6 +8,7 @@ import UserModel from "../user/user.model";
 import {
   APPOINTMENT_SEARCHABLE_FIELDS,
   APPOINTMENT_STATUS,
+  PATIENT_OWN_APPOINTMENT_SEARCHABLE_FIELDS,
 } from "./appointment.constant";
 import {
   TAppointmentQuery,
@@ -103,6 +103,100 @@ const bookAppointment = async (payload: TBookAppointmentPayload) => {
   return result;
 };
 
+/*========== Book Appointment login petient ==========*/
+const bookAppointmentByLoginPatient = async (patientUserId: string, payload: TBookAppointmentPayload) => {
+  const { scheduleId, appointmentDate, problem } = payload;
+
+  // check patient
+  const patientUser = await UserModel.findOne({
+    _id: new Types.ObjectId(patientUserId),
+    role: USER_ROLES.PATIENT,
+  })
+  if (!patientUser) {
+    throw new NotFoundError("Patient not found")
+  }
+
+  //check schedule
+  const schedule = await ScheduleModel.findOne({
+    _id: new Types.ObjectId(scheduleId),
+  });
+
+  if (!schedule) {
+    throw new NotFoundError("Schedule not found with the provided ID");
+  }
+
+  //check schedule is not active
+  if (!schedule.isActive) {
+    throw new ConflictError("This schedule is not active.");
+  }
+
+  // check doctor
+  const doctorUser = await UserModel.findOne({
+    _id: new Types.ObjectId(schedule.doctorUserId),
+    role: USER_ROLES.DOCTOR,
+  });
+
+  if (!doctorUser) {
+    throw new NotFoundError("Doctor not found with the provided ID");
+  }
+
+  //check doctor is not active
+  if (doctorUser.status !== ACCOUNT_STATUS.ACTIVE) {
+    throw new ConflictError("The associated doctor is not active.");
+  }
+
+  //check day
+  const dayName = new Date(appointmentDate).toLocaleDateString("en-US", { weekday: "short" });
+  if (schedule.day !== dayName) {
+    throw new ConflictError(`This schedule is not active on ${dayName}.`);
+  }
+
+  const scheduleTime = `${schedule.startTime} - ${schedule.endTime}`;
+
+  // 3. Check if the doctor already has a booked appointment for this schedule slot on this date
+  const existingSlotAppointment = await AppointmentModel.findOne({
+    doctorUserId: schedule.doctorUserId,
+    appointmentDate: new Date(appointmentDate),
+    schedule: scheduleTime,
+    status: { $in: [APPOINTMENT_STATUS.PENDING, APPOINTMENT_STATUS.CONFIRMED] },
+  });
+
+  if (existingSlotAppointment) {
+    throw new ConflictError(
+      `The schedule slot "${scheduleTime}" is already booked for this doctor on the selected date. Please select another slot.`,
+    );
+  }
+
+  // 4. Calculate daily serial number for that doctor on that date
+  const sameDayAppointmentsCount = await AppointmentModel.countDocuments({
+    doctorUserId: schedule.doctorUserId,
+    appointmentDate: new Date(appointmentDate),
+  });
+
+  const serialNumber = sameDayAppointmentsCount + 1;
+
+  // 5. Generate unique appointmentCode
+  const appointmentCode = generateAppointmentCode();
+
+
+  // 7. Create appointment document
+  const result = await AppointmentModel.create({
+    appointmentCode,
+    doctorUserId: schedule.doctorUserId,
+    fullName: patientUser.fullName,
+    email: patientUser.email,
+    phone: patientUser.phone,
+    appointmentDate: new Date(appointmentDate),
+    schedule: scheduleTime,
+    problem,
+    dateOfBirth: payload.dateOfBirth ? new Date(payload.dateOfBirth) : null,
+    status: APPOINTMENT_STATUS.PENDING,
+    serialNumber,
+  });
+
+  return result;
+};
+
 /*========== Get My Appointments (Doctor) ==========*/
 const getMyAppointments = async (
   doctorUserId: string,
@@ -146,12 +240,137 @@ const getMyAppointments = async (
         ...filterQuery,
       },
     },
+    {
+      $project: {
+        doctorUserId: 0
+      }
+    }
   ];
 
 
   const result = await AppointmentModel.aggregate([
     ...commonPipeline,
     { $sort: { appointmentDate: 1 } },
+    { $skip: skip },
+    { $limit: Number(limit) },
+  ]);
+
+  const totalCountResult = await AppointmentModel.aggregate([
+    ...commonPipeline,
+    { $count: "totalCount" },
+  ]);
+
+  const totalCount = totalCountResult[0]?.totalCount || 0;
+  const totalPages = Math.ceil(totalCount / Number(limit));
+
+  return {
+    meta: {
+      page: Number(page),
+      limit: Number(limit),
+      totalPages,
+      total: totalCount,
+    },
+    data: result,
+  };
+};
+
+/*========== Get Patient Own Appointments (Patient) ==========*/
+const getPatientOwnAppointments = async (
+  patientEmail: string,
+  query: TAppointmentQuery,
+) => {
+  const {
+    searchTerm,
+    page = 1,
+    limit = 10,
+    sortBy = "createdAt",
+    sortOrder = "desc",
+    appointmentDate,
+    ...filters
+  } = query;
+
+  const skip = (Number(page) - 1) * Number(limit);
+  const sortDirection = sortOrder === "asc" ? 1 : -1;
+
+  let searchQuery = {};
+  if (searchTerm) {
+    searchQuery = makeSearchQuery(searchTerm, PATIENT_OWN_APPOINTMENT_SEARCHABLE_FIELDS);
+  }
+
+  let filterQuery: Record<string, unknown> = {};
+  if (filters) {
+    filterQuery = makeFilterQuery(filters);
+  }
+
+  //filter by appointment date
+  if (appointmentDate) {
+    filterQuery = {
+      ...filterQuery,
+      appointmentDate: new Date(appointmentDate),
+    }
+  }
+
+  const commonPipeline: PipelineStage[] = [
+    {
+      $match: {
+        email: patientEmail,
+        ...searchQuery,
+        ...filterQuery,
+      },
+    },
+    {
+      $lookup: {
+        from: "users",
+        localField: "doctorUserId",
+        foreignField: "_id",
+        as: "doctorUser",
+      },
+    },
+    { $unwind: "$doctorUser" },
+    {
+      $lookup: {
+        from: "doctors",
+        localField: "doctorUserId",
+        foreignField: "userId",
+        as: "doctorProfile",
+      },
+    },
+    {
+      $unwind: {
+        path: "$doctorProfile",
+        preserveNullAndEmptyArrays: true,
+      },
+    },
+    {
+      $project: {
+        _id: 1,
+        appointmentCode: "$appointmentCode",
+        doctorUserId: "$doctorUserId",
+        doctorName: "$doctorUser.fullName",
+        doctorEmail: "$doctorUser.email",
+        doctorPhone: "$doctorUser.phone",
+        doctorProfileImg: "$doctorUser.profileImg",
+        doctorTitle: "$doctorProfile.title",
+        doctorSpecialization: "$doctorProfile.specialization",
+        doctorHospital: "$doctorProfile.hospital",
+        doctorDesignation: "$doctorProfile.designation",
+        doctorConsultationFee: "$doctorProfile.consultationFee",
+        appointmentDate: "$appointmentDate",
+        schedule: "$schedule",
+        problem: "$problem",
+        status: "$status",
+        serialNumber: "$serialNumber",
+        cancelReason: "$cancelReason",
+        doctorNotes: "$doctorNotes",
+        createdAt: "$createdAt",
+        updatedAt: "$updatedAt",
+      },
+    },
+  ];
+
+  const result = await AppointmentModel.aggregate([
+    ...commonPipeline,
+    { $sort: { [sortBy]: sortDirection } },
     { $skip: skip },
     { $limit: Number(limit) },
   ]);
@@ -216,6 +435,12 @@ const getAllAppointments = async (query: TAppointmentQuery) => {
 
   const commonPipeline: PipelineStage[] = [
     {
+      $match: {
+        ...searchQuery,
+        ...filterQuery,
+      },
+    },
+    {
       $lookup: {
         from: "users",
         localField: "doctorUserId",
@@ -253,7 +478,7 @@ const getAllAppointments = async (query: TAppointmentQuery) => {
         doctorTitle: "$doctorProfile.title",
         doctorSpecialization: "$doctorProfile.specialization",
         doctorHospital: "$doctorProfile.hospital",
-        doctorDesignation: "$doctorProfile.designation", 
+        doctorDesignation: "$doctorProfile.designation",
         appointmentDate: "$appointmentDate",
         schedule: "$schedule",
         problem: "$problem",
@@ -293,37 +518,6 @@ const getAllAppointments = async (query: TAppointmentQuery) => {
     },
     data: result,
   };
-};
-
-/*========== Get Doctor Appointments (By Doctor ID) ==========*/
-const getDoctorAppointments = async (
-  doctorUserId: string,
-  query: TAppointmentQuery,
-) => {
-  const doctor = await UserModel.findById(doctorUserId);
-  if (!doctor) {
-    throw new NotFoundError("Doctor not found with the provided ID");
-  }
-  return await getMyAppointments(doctorUserId, query);
-};
-
-/*========== Get Single Appointment ==========*/
-const getSingleAppointment = async (appointmentId: string) => {
-  const appointment = await AppointmentModel.findById(appointmentId)
-    .populate({
-      path: "doctorUserId",
-      select: "fullName email phone profileImg",
-    })
-    .populate({
-      path: "patientUserId",
-      select: "fullName email phone profileImg",
-    });
-
-  if (!appointment) {
-    throw new NotFoundError("Appointment not found with the provided ID");
-  }
-
-  return appointment;
 };
 
 /*========== Update Appointment Status (Doctor / Admin) ==========*/
@@ -402,14 +596,46 @@ const deleteAppointment = async (
   return appointment;
 };
 
+/*========== get appointment stats (Admin) ==============*/
+const getAppointmentStats = async () => {
+  const result = await AppointmentModel.aggregate([
+    {
+      $group: {
+        _id: "$status",
+        count: { $sum: 1 },
+      }
+    }
+  ]);
+
+  // Initialize all possible statuses with 0
+  const stats = {
+    total: 0,
+    pending: 0,
+    completed: 0,
+    confirmed: 0,
+    cancelled: 0
+  };
+
+  // Populate counts and calculate the total
+  result.forEach(item => {
+    if (stats.hasOwnProperty(item._id)) {
+      stats[item._id as keyof typeof stats] = item.count;
+      stats.total += item.count;
+    }
+  });
+
+  return stats;
+};
+
 const AppointmentService = {
   bookAppointment,
+  bookAppointmentByLoginPatient,
   getMyAppointments,
-  getDoctorAppointments,
+  getPatientOwnAppointments,
   getAllAppointments,
-  getSingleAppointment,
   updateAppointmentStatus,
   deleteAppointment,
+  getAppointmentStats
 };
 
 export default AppointmentService;
