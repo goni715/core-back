@@ -1,71 +1,88 @@
-import z from 'zod';
-import isObjectId from '../../utils/isObjectId';
-import { requiredStringSchema } from '../../schemas/required.schema';
-import { enumSchema } from '../../schemas/enum.schema';
-import { FAQ_CATEGORY_VALUES } from './faq.constant';
-import { booleanSchema } from '../../schemas/boolean.schema';
-import { booleanQuerySchema } from '../../schemas/global.schema';
+import z from "zod";
+import isObjectId from "../../utils/isObjectId";
+import { requiredStringSchema } from "../../schemas/required.schema";
+import { enumSchema } from "../../schemas/enum.schema";
+import { FAQ_CATEGORY_VALUES } from "./faq.constant";
+import { booleanSchema } from "../../schemas/boolean.schema";
+import { booleanQuerySchema } from "../../schemas/global.schema";
 
-const questionRegex = /^.*\?$/
+const questionRegex = /^.*\?\s*$/;
 
-const questionZodZchema = requiredStringSchema('question')
-    .max(500, "question must be at most 500 characters long")
-    .regex(questionRegex, {
-        message: "Question must end with a question mark (?)",
-    });
+const questionZodSchema = requiredStringSchema("question")
+  .max(500, "Question must be at most 500 characters long")
+  .regex(questionRegex, {
+    message: "Question must end with a question mark (?)",
+  });
 
-const answerZodZchema = requiredStringSchema('answer')
-    .max(500, "answer must be at most 500 characters long")
+const answerZodSchema = requiredStringSchema("answer").max(
+  5000,
+  "Answer must be at most 5000 characters long",
+);
 
-const categoryZodZchema = enumSchema('category', FAQ_CATEGORY_VALUES);
+const categoryZodSchema = enumSchema("category", FAQ_CATEGORY_VALUES);
+
+const faqIdZodSchema = requiredStringSchema("faqId").refine(
+  (id) => isObjectId(id),
+  {
+    message: "faqId must be a valid ObjectId",
+  },
+);
 
 export const createFaqValidationSchema = z.object({
-    body: z.object({
-        question: questionZodZchema,
-        answer: answerZodZchema,
-        category: categoryZodZchema,
-        isActive: booleanSchema('isActive').optional()
-    })
-});
-
-const faqIdZodSchema = requiredStringSchema('faqId').refine((id) => isObjectId(id), {
-    message: "faqId must be a valid ObjectId",
+  body: z.object({
+    question: questionZodSchema,
+    answer: answerZodSchema,
+    category: categoryZodSchema,
+    isActive: booleanSchema("isActive").optional(),
+  }),
 });
 
 export const updateFaqValidationSchema = z.object({
-    params: z.object({
-        faqId: faqIdZodSchema,
-    }),
-    body: z.object({
-        question: questionZodZchema.optional(),
-        answer: answerZodZchema.optional(),
-        category: categoryZodZchema.optional(),
-        isActive: booleanSchema('isActive').optional()
+  params: z.object({
+    faqId: faqIdZodSchema,
+  }),
+  body: z
+    .object({
+      question: questionZodSchema.optional(),
+      answer: answerZodSchema.optional(),
+      category: categoryZodSchema.optional(),
+      isActive: booleanSchema("isActive").optional(),
     })
-        .refine((data) => Object.values(data).some((val) => val !== undefined), {
-            message: "At least one field must be provided to update",
-            path: ["body"],
-        })
-})
+    .refine((data) => Object.values(data).some((val) => val !== undefined), {
+      message: "At least one field must be provided to update",
+      path: ["body"],
+    }),
+});
 
+export const getSingleFaqValidationSchema = z.object({
+  params: z.object({
+    faqId: faqIdZodSchema,
+  }),
+});
 
 export const deleteFaqValidationSchema = z.object({
-    params: z.object({
-        faqId: faqIdZodSchema,
-    }),
-})
+  params: z.object({
+    faqId: faqIdZodSchema,
+  }),
+});
 
 export const getFaqsValidationSchema = z.object({
-    query: z.object({
-        searchTerm: z.string().optional(),
-        page: z.string().optional(),
-        limit: z.string().optional(),
-        sortBy: z.string().optional(),
-        sortOrder: enumSchema("sortOrder", ["asc", "desc"])
-            .optional(),
-        isActive: booleanQuerySchema("isActive")
-            .optional(),
-        category: enumSchema("category", FAQ_CATEGORY_VALUES)
-            .optional(),
+  query: z.object({
+    searchTerm: z.string().optional(),
+    page: z.string().optional(),
+    limit: z.string().optional(),
+    sortBy: z.string().optional(),
+    sortOrder: enumSchema("sortOrder", ["asc", "desc"]).optional(),
+    isActive: booleanQuerySchema("isActive").optional(),
+    category: enumSchema("category", FAQ_CATEGORY_VALUES).optional(),
+  }),
+});
+
+export const getUserFaqsValidationSchema = z.object({
+  query: z
+    .object({
+      searchTerm: z.string().optional(),
+      category: enumSchema("category", FAQ_CATEGORY_VALUES).optional(),
     })
+    .optional(),
 });

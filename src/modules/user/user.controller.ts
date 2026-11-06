@@ -1,4 +1,5 @@
 import asyncHandler from "../../utils/asyncHandler";
+import { TUserRole } from "./user.interface";
 import UserService from "./user.service";
 
 
@@ -14,8 +15,18 @@ const getPatients = asyncHandler(async (req, res) => {
 });
 
 const getMyProfile = asyncHandler(async (req, res) => {
+    const { userId, role } = req.headers;
+    const result = await UserService.getMyProfile(userId as string, role as TUserRole);
+    res.status(200).json({
+        success: true,
+        message: "My profile is retrieved successfully",
+        data: result,
+    });
+});
+
+const getSubAgentProfile = asyncHandler(async (req, res) => {
     const { userId } = req.headers;
-    const result = await UserService.getMyProfile(userId as string);
+    const result = await UserService.getSubAgentProfile(userId as string);
     res.status(200).json({
         success: true,
         message: "My profile is retrieved successfully",
@@ -37,6 +48,7 @@ const updateProfile = asyncHandler(async (req, res) => {
 const UserController = {
     getPatients,
     getMyProfile,
+    getSubAgentProfile,
     updateProfile,
 }
 

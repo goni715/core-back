@@ -13,6 +13,8 @@ import AgentRoutes from "../modules/agent/agent.route";
 import AgentPatientRoutes from "../modules/agentPatient/agentPatient.route";
 import ReferralPartnerRoutes from "../modules/referralPartner/referralPartner.route";
 import AppointmentRoutes from "../modules/appointment/appointment.route";
+import TipCategoryRoutes from "../modules/tipCategory/tipCategory.route";
+import HealthTipRoutes from "../modules/healthTip/healthTip.route";
 
 const router = express.Router();
 
@@ -76,6 +78,14 @@ const moduleRoutes = [
   {
     path: "/appointment",
     route: AppointmentRoutes,
+  },
+  {
+    path: "/tip-category",
+    route: TipCategoryRoutes,
+  },
+  {
+    path: "/health-tip",
+    route: HealthTipRoutes,
   },
 ];
 

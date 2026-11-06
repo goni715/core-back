@@ -1,12 +1,14 @@
 import { makeFilterQuery, makeSearchQuery } from "../../helpers/QueryBuilder";
-import { IUser, TPatientQuery } from "./user.interface";
+import { IUser, TPatientQuery, TUserRole } from "./user.interface";
 import { USER_ROLES, USER_SEARCHABLE_FIELDS } from "./user.constant";
-import { PipelineStage } from "mongoose";
+import { PipelineStage, Types } from "mongoose";
 import UserModel from "./user.model";
 import uploadToCloudinary from "../../utils/uploadToCloudinary";
 import deleteFromCloudinary from "../../utils/deleteFromCloudinary";
 import makePublicID from "../../utils/makePublicID";
 import ConflictError from "../../errors/ConflictError";
+import DoctorModel from "../doctor/doctor.model";
+import ReferralPartnerModel from "../referralPartner/referralPartner.model";
 
 
 
@@ -92,9 +94,126 @@ const getPatients = async (query: TPatientQuery) => {
 };
 
 /*============== get user profile ================== */
-const getMyProfile = async (userId: string) => {
-    const user = await UserModel.findById(userId).select("fullName email phone profileImg status blockedAt lastLoginAt createdAt");
-    return user;
+const getMyProfile = async (userId: string, role: TUserRole) => {
+    //if role is patient
+    if (role === USER_ROLES.PATIENT) {
+        const patient = await UserModel.findById({
+            _id: userId,
+            role: USER_ROLES.PATIENT,
+        }).select("fullName email phone profileImg lastLoginAt createdAt");
+
+        return patient;
+    }
+
+    //if role is doctor
+    if (role === USER_ROLES.DOCTOR) {
+        const doctors = await DoctorModel.aggregate([
+            {
+                $match: {
+                    userId: new Types.ObjectId(userId)
+                }
+            },
+            {
+                $lookup: {
+                    from: "users",
+                    localField: "userId",
+                    foreignField: "_id",
+                    as: "user",
+                }
+            },
+            {
+                $unwind: {
+                    path: "$user",
+                    preserveNullAndEmptyArrays: true
+                }
+            },
+            {
+                $project: {
+                    userId: "$userId",
+                    title: "$title",
+                    fullName: "$user.fullName",
+                    email: "$user.email",
+                    phone: "$user.phone",
+                    profileImg: "$user.profileImg",
+                    specialization: "$specialization",
+                    hospital: "$hospital",
+                    designation: "$designation",
+                    education: "$education",
+                    consultationFee: "$consultationFee",
+                    address: "$address",
+                    bmdcNumber: "$bmdcNumber",
+                    experience: "$experience",
+                    about: "$about",
+                    qualifications: "$qualifications",
+                    rating: "$rating",
+                    totalReviews: "$totalReviews",
+                    isOnline: "$isOnline",
+                    approvalStatus: "$approvalStatus",
+                    approvedAt: "$approvedAt",
+                    approvedBy: "$approvedBy",
+                    rejectedAt: "$rejectedAt",
+                    rejectedBy: "$rejectedBy",
+                    rejectionReason: "$rejectionReason",
+                    status: "$status",
+                    registrationSource: "$registrationSource",
+                    lastLoginAt: "$user.lastLoginAt",
+                    createdAt: "$user.createdAt",
+                    updatedAt: "$user.updatedAt",
+                }
+            }
+        ])
+
+        return doctors[0];
+    }
+
+    //if role is admin or super_admin
+    const result = await UserModel.findById({
+        _id: userId,
+        role: { $in: [USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN] },
+    }).select("fullName email phone profileImg lastLoginAt createdAt");
+
+    return result;
+}
+
+/*============== get sub-agent profile ================== */
+const getSubAgentProfile = async (subAgentId: string) => {
+    const subAgent = await ReferralPartnerModel.aggregate([
+        {
+            $match: {
+                _id: new Types.ObjectId(subAgentId)
+            }
+        },
+        {
+            $lookup: {
+                from: "users",
+                localField: "agentUserId",
+                foreignField: "_id",
+                as: "user"
+            }
+        },
+        {
+            $unwind: {
+                path: "$user",
+                preserveNullAndEmptyArrays: true
+            }
+        },
+        {
+            $project: {
+                _id: 1,
+                fullName: "$fullName",
+                email: "$email",
+                phone: "$phone",
+                agentUserId:"$agentUserId",
+                agentName: "$user.fullName",
+                agentEmail: "$user.email",
+                agentPhone: "$user.phone",
+                lastLoginAt: "$user.lastLoginAt",
+                createdAt: "$createdAt",
+            },
+        },
+    ])
+
+    return subAgent[0];
 }
 
 /*============== update profile ================== */
@@ -152,11 +271,10 @@ const updateProfile = async (userId: string, req: any) => {
     }
 }
 
-
-
 const UserService = {
     getPatients,
     getMyProfile,
+    getSubAgentProfile,
     updateProfile,
 }
 

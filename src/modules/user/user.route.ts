@@ -5,6 +5,7 @@ import { USER_ROLES } from "./user.constant";
 import validationMiddleware from "../../middlewares/validationMiddleware";
 import { getPatientsValidationSchema, updateProfileValidationSchema } from "./user.validation";
 import upload from "../../helpers/upload";
+import subAgentAuthMiddleware from "../../middlewares/subAgentAuthMIddleware";
 
 const router = express.Router();
 
@@ -19,6 +20,11 @@ router.get(
     "/my-profile",
     authMiddleware(USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN, USER_ROLES.PATIENT, USER_ROLES.DOCTOR),
     UserController.getMyProfile
+);
+router.get(
+    "/sub-agent-profile",
+    subAgentAuthMiddleware(),
+    UserController.getSubAgentProfile
 );
 
 router.patch(
