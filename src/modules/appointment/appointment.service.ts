@@ -274,6 +274,157 @@ const getMyAppointments = async (
   };
 };
 
+/*========== Get My Patients (Doctor - Unique Patients Grouped by Email) ==========*/
+const getMyPatients = async (
+  doctorUserId: string,
+  query: {
+    searchTerm?: string;
+    page?: string | number;
+    limit?: string | number;
+    sortBy?: string;
+    sortOrder?: "asc" | "desc";
+  },
+) => {
+  const {
+    searchTerm,
+    page = 1,
+    limit = 10,
+    sortBy = "lastAppointmentDate",
+    sortOrder = "desc",
+  } = query;
+
+  const skip = (Number(page) - 1) * Number(limit);
+  const sortDirection = sortOrder === "asc" ? 1 : -1;
+
+  let searchCondition: Record<string, unknown> = {};
+  if (searchTerm && searchTerm.trim()) {
+    searchCondition = {
+      $or: [
+        { fullName: { $regex: searchTerm.trim(), $options: "i" } },
+        { email: { $regex: searchTerm.trim(), $options: "i" } },
+        { phone: { $regex: searchTerm.trim(), $options: "i" } },
+      ],
+    };
+  }
+
+  const commonPipeline: PipelineStage[] = [
+    {
+      $match: {
+        doctorUserId: new Types.ObjectId(doctorUserId),
+        ...searchCondition,
+      },
+    },
+    // Sort appointments descending by appointmentDate/createdAt so that $first picks the latest appointment
+    {
+      $sort: { appointmentDate: -1, createdAt: -1 },
+    },
+    // Group by email (case-insensitive)
+    {
+      $group: {
+        _id: { $toLower: "$email" },
+        email: { $first: "$email" },
+        patientEmail: { $first: "$email" },
+        fullName: { $first: "$fullName" },
+        patientName: { $first: "$fullName" },
+        phone: { $first: "$phone" },
+        patientPhone: { $first: "$phone" },
+        patientPhoneNumber: { $first: "$phone" },
+        bloodGroup: { $first: "$bloodGroup" },
+        dateOfBirth: { $first: "$dateOfBirth" },
+        totalAppointments: { $sum: 1 },
+        totalBookings: { $sum: 1 },
+        appointmentCount: { $sum: 1 },
+        bookingCount: { $sum: 1 },
+        lastAppointmentDate: { $first: "$appointmentDate" },
+        lastAppointmentSchedule: { $first: "$schedule" },
+        lastAppointment: {
+          $first: {
+            _id: "$_id",
+            appointmentCode: "$appointmentCode",
+            appointmentDate: "$appointmentDate",
+            schedule: "$schedule",
+            problem: "$problem",
+            status: "$status",
+          },
+        },
+      },
+    },
+    // Lookup registered user info if patient has an account in users collection
+    {
+      $lookup: {
+        from: "users",
+        localField: "email",
+        foreignField: "email",
+        as: "registeredUser",
+      },
+    },
+    {
+      $unwind: {
+        path: "$registeredUser",
+        preserveNullAndEmptyArrays: true,
+      },
+    },
+    {
+      $project: {
+        _id: "$email",
+        patientName: "$fullName",
+        fullName: "$fullName",
+        email: "$email",
+        patientEmail: "$email",
+        phone: "$phone",
+        patientPhone: "$phone",
+        patientPhoneNumber: "$phone",
+        profileImg: "$registeredUser.profileImg",
+        bloodGroup: "$bloodGroup",
+        dateOfBirth: "$dateOfBirth",
+        totalAppointments: "$totalAppointments",
+        totalBookings: "$totalBookings",
+        appointmentCount: "$appointmentCount",
+        bookingCount: "$bookingCount",
+        lastAppointmentDate: "$lastAppointmentDate",
+        lastAppointmentSchedule: "$lastAppointmentSchedule",
+        lastAppointment: "$lastAppointment",
+      },
+    },
+  ];
+
+  const patients = await AppointmentModel.aggregate([
+    ...commonPipeline,
+    { $sort: { [sortBy]: sortDirection } },
+    { $skip: skip },
+    { $limit: Number(limit) },
+  ]);
+
+  const totalCountResult = await AppointmentModel.aggregate([
+    {
+      $match: {
+        doctorUserId: new Types.ObjectId(doctorUserId),
+        ...searchCondition,
+      },
+    },
+    {
+      $group: {
+        _id: { $toLower: "$email" },
+      },
+    },
+    { $count: "totalCount" },
+  ]);
+
+  const totalCount = totalCountResult[0]?.totalCount || 0;
+  const totalPages = Math.ceil(totalCount / Number(limit));
+
+  return {
+    meta: {
+      page: Number(page),
+      limit: Number(limit),
+      totalPages,
+      total: totalCount,
+      totalPatients: totalCount,
+    },
+    data: patients,
+  };
+};
+
 /*========== Get Patient Own Appointments (Patient) ==========*/
 const getPatientOwnAppointments = async (
   patientEmail: string,
@@ -631,6 +782,7 @@ const AppointmentService = {
   bookAppointment,
   bookAppointmentByLoginPatient,
   getMyAppointments,
+  getMyPatients,
   getPatientOwnAppointments,
   getAllAppointments,
   updateAppointmentStatus,

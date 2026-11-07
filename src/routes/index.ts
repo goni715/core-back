@@ -15,6 +15,8 @@ import ReferralPartnerRoutes from "../modules/referralPartner/referralPartner.ro
 import AppointmentRoutes from "../modules/appointment/appointment.route";
 import TipCategoryRoutes from "../modules/tipCategory/tipCategory.route";
 import HealthTipRoutes from "../modules/healthTip/healthTip.route";
+import TestReportRoutes from "../modules/testReport/testReport.route";
+import ConsultationRoutes from "../modules/consultation/consultation.route";
 
 const router = express.Router();
 
@@ -86,6 +88,14 @@ const moduleRoutes = [
   {
     path: "/health-tip",
     route: HealthTipRoutes,
+  },
+  {
+    path: "/test-report",
+    route: TestReportRoutes,
+  },
+  {
+    path: "/consultation",
+    route: ConsultationRoutes,
   },
 ];
 

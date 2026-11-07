@@ -43,6 +43,25 @@ const getMyAppointments = asyncHandler(async (req: Request, res: Response) => {
   });
 });
 
+/*========== Get My Patients (Doctor - Unique Patients Grouped by Email) ==========*/
+const getMyPatients = asyncHandler(async (req: Request, res: Response) => {
+  const doctorUserId =
+    (req as any).user?.userId || (req.headers.userId as string);
+  const validatedQuery = (req as any).validatedQuery || req.query;
+
+  const result = await AppointmentService.getMyPatients(
+    doctorUserId as string,
+    validatedQuery,
+  );
+
+  res.status(200).json({
+    success: true,
+    message: "Patients retrieved successfully",
+    meta: result.meta,
+    data: result.data,
+  });
+});
+
 /*========== Get Patient Own Appointments (Patient) ==========*/
 const getPatientOwnAppointments = asyncHandler(async (req: Request, res: Response) => {
   const { email } = req.headers;
@@ -133,6 +152,7 @@ const AppointmentController = {
   bookAppointment,
   bookAppointmentByLoginPatient,
   getMyAppointments,
+  getMyPatients,
   getPatientOwnAppointments,
   getAllAppointments,
   updateAppointmentStatus,

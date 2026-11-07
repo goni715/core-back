@@ -10,6 +10,7 @@ import {
   updateAppointmentStatusValidationSchema,
   getMyAppointmentsValidationSchema,
   bookAppointmentByLoginPatientValidationSchema,
+  getMyPatientsValidationSchema,
 } from "./appointment.validation";
 
 const router = express.Router();
@@ -35,6 +36,21 @@ router.get(
   authMiddleware(USER_ROLES.DOCTOR),
   validationMiddleware(getMyAppointmentsValidationSchema),
   AppointmentController.getMyAppointments,
+);
+
+/* Doctor: Get own unique patients directory (grouped by email) */
+router.get(
+  "/my-patients",
+  authMiddleware(USER_ROLES.DOCTOR),
+  validationMiddleware(getMyPatientsValidationSchema),
+  AppointmentController.getMyPatients,
+);
+
+router.get(
+  "/my-patients",
+  authMiddleware(USER_ROLES.DOCTOR),
+  validationMiddleware(getMyPatientsValidationSchema),
+  AppointmentController.getMyPatients,
 );
 
 router.get(
