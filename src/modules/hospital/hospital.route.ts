@@ -12,6 +12,7 @@ import {
   getSinglePublishedHospitalValidationSchema,
   updateHospitalValidationSchema,
 } from "./hospital.validation";
+import subAgentAuthMiddleware from "../../middlewares/subAgentAuthMIddleware";
 
 const router = express.Router();
 
@@ -25,7 +26,14 @@ router.post(
 
 router.get(
   "/get-hospitals",
-  authMiddleware(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN),
+  authMiddleware(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN, USER_ROLES.AGENT),
+  validationMiddleware(getHospitalsValidationSchema),
+  HospitalController.getHospitals,
+);
+
+router.get(
+  "/get-sub-agent-hospitals",
+  subAgentAuthMiddleware(),
   validationMiddleware(getHospitalsValidationSchema),
   HospitalController.getHospitals,
 );
@@ -34,6 +42,18 @@ router.get(
   "/published-hospitals",
   validationMiddleware(getPublishedHospitalsValidationSchema),
   HospitalController.getPublishedHospitals,
+);
+
+router.get(
+  "/agent-country-stats",
+  authMiddleware(USER_ROLES.AGENT),
+  HospitalController.getHospitalCountryStats,
+);
+
+router.get(
+  "/sub-agent-country-stats",
+  subAgentAuthMiddleware(),
+  HospitalController.getHospitalCountryStats,
 );
 
 router.get(

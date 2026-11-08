@@ -9,6 +9,7 @@ import makePublicID from "../../utils/makePublicID";
 import ConflictError from "../../errors/ConflictError";
 import DoctorModel from "../doctor/doctor.model";
 import ReferralPartnerModel from "../referralPartner/referralPartner.model";
+import AgentModel from "../agent/agent.model";
 
 
 
@@ -166,6 +167,44 @@ const getMyProfile = async (userId: string, role: TUserRole) => {
         return doctors[0];
     }
 
+    if(role===USER_ROLES.AGENT){
+        const agents = await AgentModel.aggregate([
+            {
+                $match: {
+                    userId: new Types.ObjectId(userId)
+                }
+            },
+            {
+                $lookup: {
+                    from: "users",
+                    localField: "userId",
+                    foreignField: "_id",
+                    as: "user",
+                }
+            },
+            {
+                $unwind: {
+                    path: "$user",
+                    preserveNullAndEmptyArrays: true
+                }
+            },
+            {
+                $project: {
+                    userId: "$userId",
+                    fullName: "$user.fullName",
+                    email: "$user.email",
+                    phone: "$user.phone",
+                    agencyName:"$agencyName",
+                    approvalStatus:"$approvalStatus",
+                    lastLoginAt: "$user.lastLoginAt",
+                    createdAt: "$user.createdAt",
+                    updatedAt: "$user.updatedAt",
+                }
+            }])
+
+            return agents[0]
+    }
+
     //if role is admin or super_admin
     const result = await UserModel.findById({
         _id: userId,
@@ -203,6 +242,7 @@ const getSubAgentProfile = async (subAgentId: string) => {
                 fullName: "$fullName",
                 email: "$email",
                 phone: "$phone",
+                agencyName:"$agencyName",
                 agentUserId:"$agentUserId",
                 agentName: "$user.fullName",
                 agentEmail: "$user.email",

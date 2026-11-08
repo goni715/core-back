@@ -18,7 +18,7 @@ router.get(
 
 router.get(
     "/my-profile",
-    authMiddleware(USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN, USER_ROLES.PATIENT, USER_ROLES.DOCTOR),
+    authMiddleware(USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN, USER_ROLES.PATIENT, USER_ROLES.DOCTOR, USER_ROLES.AGENT),
     UserController.getMyProfile
 );
 router.get(

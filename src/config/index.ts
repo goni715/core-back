@@ -1,6 +1,7 @@
 import dotenv from "dotenv";
 import path from "path";
 import { z } from "zod";
+import { requiredStringSchema } from "../schemas/required.schema";
 
 dotenv.config({ path: path.join(process.cwd(), ".env") });
 
@@ -43,6 +44,8 @@ const envSchema = z.object({
   CLOUD_API_KEY: z.string(),
   CLOUD_API_SECRET_KEY: z.string(),
   FRONT_END_URL: z.string(),
+  AGORA_APP_ID: requiredStringSchema('AGORA_APP_ID'),
+  AGORA_APP_CERTIFICATE: requiredStringSchema('AGORA_APP_CERTIFICATE'),
 });
 
 // Validate process.env against schema
@@ -106,4 +109,8 @@ export default {
     cloud_api_secret_key: env.CLOUD_API_SECRET_KEY,
   },
   frontEndUrl: env.FRONT_END_URL,
+  agora: {
+    app_id: env.AGORA_APP_ID,
+    app_certificate: env.AGORA_APP_CERTIFICATE,
+  },
 };

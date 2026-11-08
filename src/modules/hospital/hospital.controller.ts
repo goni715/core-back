@@ -75,6 +75,15 @@ const deleteHospital = asyncHandler(async (req, res) => {
   });
 });
 
+const getHospitalCountryStats = asyncHandler(async (req, res) => {
+  const result = await HospitalService.getHospitalCountryStats(req.query as { status?: string });
+  res.status(200).json({
+    success: true,
+    message: "Hospital country statistics retrieved successfully",
+    data: result,
+  });
+});
+
 const HospitalController = {
   createHospital,
   getHospitals,
@@ -83,6 +92,7 @@ const HospitalController = {
   getHospitalById,
   updateHospital,
   deleteHospital,
+  getHospitalCountryStats,
 };
 
 export default HospitalController;

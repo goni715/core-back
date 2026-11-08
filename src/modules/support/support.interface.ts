@@ -4,8 +4,11 @@ import { SUPPORT_STATUS } from "./support.constant";
 export type TSupportStatus = typeof SUPPORT_STATUS[keyof typeof SUPPORT_STATUS];
 
 export interface ISupport extends Document {
-    userId: Types.ObjectId;
-    title: string;
+    ticket: string;
+    fullName: string;
+    email: string;
+    phone: string;
+    subject: string;
     message: string;
     replyMessage?: string;
     replyAt?: Date;

@@ -2,14 +2,18 @@ import z from "zod";
 import { SUPPORT_STATUS_VALUES } from "./support.constant";
 import { requiredStringSchema } from "../../schemas/required.schema";
 import { enumSchema } from "../../schemas/enum.schema";
+import { emailZodSchema, fullNameZodSchema, phoneNumberZodSchema } from "../auth/auth.validation";
 
 export const dateFormatRegex = /^20\d{2}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 
 export const supportValidationSchema = z.object({
     body: z.object({
-        title: requiredStringSchema('title')
+        fullName: fullNameZodSchema,
+        email: emailZodSchema,
+        phone: phoneNumberZodSchema,
+        subject: requiredStringSchema('subject')
             .max(150, {
-                message: "Title must not exceed 150 characters",
+                message: "Subject must not exceed 150 characters",
             }),
         message:
             requiredStringSchema('message')
@@ -18,7 +22,6 @@ export const supportValidationSchema = z.object({
                 }),
     })
 });
-
 
 export const dateZodSchema = requiredStringSchema('date')
     .superRefine((date, ctx) => {

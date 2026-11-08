@@ -8,6 +8,7 @@ export interface IHospital extends Document {
   name: string;
   slug: string;
   image: string;
+  country?: string;
   address: string;
   contactNumber?: string;
   email?: string;
@@ -28,4 +29,5 @@ export type THospitalQuery = {
   sortBy?: string;
   sortOrder?: "asc" | "desc";
   status?: THospitalStatus;
+  country?: string;
 };

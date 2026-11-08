@@ -9,6 +9,8 @@ import { globalRateLimiter } from "./middlewares/rateLimiter";
 import config from "./config";
 import router from "./routes";
 import dbConnect from "./utils/dbConnect";
+import { RtcTokenBuilder, RtcRole } from "agora-token";
+import crypto from "crypto";
 
 const app: Application = express();
 
@@ -38,6 +40,33 @@ if (config.node_env === "production") {
 
 app.get("/", (req: Request, res: Response) => {
   res.send(`Health Backend server is running !`);
+});
+
+app.get("/generate-token", (req, res) => {
+  const channelName = crypto.randomBytes(4).toString("hex");
+  if (!channelName) {
+    return res.status(400).json({ error: "Channel name is required" });
+  }
+
+  const appId = config.agora.app_id;
+  const appCertificate = config.agora.app_certificate;
+  const role = RtcRole.PUBLISHER;
+  const expirationTimeInSeconds = 3600;
+  const currentTimestamp = Math.floor(Date.now() / 1000);
+  const privilegeExpiredTs = currentTimestamp + expirationTimeInSeconds;
+
+  // dynamic token generation (7th argument added: expirationTimeInSeconds)
+  const token = RtcTokenBuilder.buildTokenWithUid(
+    appId,
+    appCertificate,
+    channelName,
+    0,
+    role,
+    expirationTimeInSeconds, // tokenExpire
+    privilegeExpiredTs       // privilegeExpire (Etai missing chilo)
+  );
+
+  return res.json({ token, appId });
 });
 
 //custom middleware implementation

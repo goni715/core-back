@@ -20,6 +20,11 @@ const hospitalSchema = new Schema<IHospital>(
       required: [true, "Hospital image is required"],
       trim: true,
     },
+    country: {
+      type: String,
+      trim: true,
+      default: "",
+    },
     address: {
       type: String,
       required: [true, "Address is required"],

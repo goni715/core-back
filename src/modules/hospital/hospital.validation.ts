@@ -42,6 +42,7 @@ export const contactNumberZodSchema = requiredStringSchema('contactNumber')
 export const createHospitalValidationSchema = z.object({
   body: z.object({
     name: requiredStringSchema("name"),
+    country: z.string().trim().optional().default(""),
     address: requiredStringSchema("address"),
     contactNumber: contactNumberZodSchema,
     email: emailZodSchema,
@@ -56,6 +57,7 @@ export const updateHospitalValidationSchema = z.object({
   }),
   body: z.object({
     name: requiredStringSchema("name").optional(),
+    country: z.string().trim().optional(),
     address: requiredStringSchema("address").optional(),
     contactNumber: contactNumberZodSchema.optional(),
     email: emailZodSchema.optional(),
@@ -89,6 +91,7 @@ export const getHospitalsValidationSchema = z.object({
     sortBy: z.string().optional(),
     sortOrder: enumSchema('sortOrder', ['asc', 'desc']).optional(),
     status: enumSchema('status', HOSPITAL_STATUS_VALUES).optional(),
+    country: z.string().optional(),
   })
 });
 
@@ -99,5 +102,6 @@ export const getPublishedHospitalsValidationSchema = z.object({
     limit: z.string().optional(),
     sortBy: z.string().optional(),
     sortOrder: enumSchema('sortOrder', ['asc', 'desc']).optional(),
+    country: z.string().optional(),
   })
 });

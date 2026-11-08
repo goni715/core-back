@@ -6,7 +6,11 @@ import { makeFilterQuery, makeSearchQuery } from "../../helpers/QueryBuilder";
 import deleteFromCloudinary from "../../utils/deleteFromCloudinary";
 import makePublicID from "../../utils/makePublicID";
 import uploadToCloudinary from "../../utils/uploadToCloudinary";
-import { HOSPITAL_SEARCHABLE_FIELDS, HOSPITAL_STATUS } from "./hospital.constant";
+import {
+  HOSPITAL_SEARCHABLE_FIELDS,
+  HOSPITAL_STATUS,
+  TARGET_COUNTRIES,
+} from "./hospital.constant";
 import { THospitalQuery } from "./hospital.interface";
 import HospitalModel from "./hospital.model";
 import convertToSlug from "../../utils/convertToSlug";
@@ -94,6 +98,7 @@ const getHospitals = async (query: THospitalQuery) => {
         _id: 1,
         name: 1,
         image: 1,
+        country: 1,
         address: 1,
         contactNumber: 1,
         email: 1,
@@ -181,6 +186,7 @@ const getPublishedHospitals = async (query: THospitalQuery) => {
         _id: 1,
         name: 1,
         image: 1,
+        country: 1,
         address: 1,
         contactNumber: 1,
         email: 1,
@@ -232,6 +238,7 @@ const getSinglePublishedHospital = async (hospitalId: string) => {
         _id: 1,
         name: 1,
         image: 1,
+        country: 1,
         address: 1,
         contactNumber: 1,
         email: 1,
@@ -342,6 +349,71 @@ const deleteHospital = async (hospitalId: string) => {
   return result;
 };
 
+/*============== get hospital country stats ================== */
+const getHospitalCountryStats = async (query?: { status?: string }) => {
+  const matchConditions: Record<string, any> = {
+    country: { $exists: true, $nin: ["", null] },
+  };
+
+  if (query?.status) {
+    if (query.status !== "all") {
+      matchConditions.status = query.status;
+    }
+  } else {
+    // Default to published partner hospitals
+    matchConditions.status = HOSPITAL_STATUS.PUBLISHED;
+  }
+
+  const stats = await HospitalModel.aggregate([
+    {
+      $match: matchConditions,
+    },
+    {
+      $group: {
+        _id: { $toLower: { $trim: { input: "$country" } } },
+        rawCountry: { $first: "$country" },
+        count: { $sum: 1 },
+      },
+    },
+  ]);
+
+  const statsMap = new Map<string, number>();
+  stats.forEach((item) => {
+    if (item._id) {
+      statsMap.set(item._id, item.count);
+    }
+  });
+
+  const formattedStats = TARGET_COUNTRIES.map((item) => {
+    const count = statsMap.get(item.country.toLowerCase()) || 0;
+    return {
+      country: item.country,
+      code: item.code,
+      totalHospitals: count,
+      count,
+    };
+  });
+
+  // Include any other countries present in database if not already handled
+  const handledCountryKeys = new Set(
+    TARGET_COUNTRIES.map((c) => c.country.toLowerCase())
+  );
+
+  stats.forEach((item) => {
+    if (item._id && !handledCountryKeys.has(item._id)) {
+      const countryName = item.rawCountry || item._id;
+      formattedStats.push({
+        country: countryName,
+        code: countryName.slice(0, 2).toUpperCase(),
+        totalHospitals: item.count,
+        count: item.count,
+      });
+    }
+  });
+
+  return formattedStats;
+};
+
 const HospitalService = {
   createHospital,
   getHospitals,
@@ -350,6 +422,7 @@ const HospitalService = {
   getHospitalById,
   updateHospital,
   deleteHospital,
+  getHospitalCountryStats,
 };
 
 export default HospitalService;

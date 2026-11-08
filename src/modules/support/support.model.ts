@@ -3,15 +3,25 @@ import { ISupport } from './support.interface';
 import { SUPPORT_STATUS, SUPPORT_STATUS_VALUES } from './support.constant';
 
 const supportSchema = new Schema<ISupport>({
-    userId: {
-        type: Schema.Types.ObjectId,
-        ref: "User",
-        required: [true, "userId is required"],
-        index: true
+     fullName: {
+      type: String,
+      required: [true, "Full name is required"],
+      trim: true,
     },
-    title: {
+    email: {
+      type: String,
+      required: [true, "Email is required"],
+      lowercase: true,
+      trim: true,
+    },
+    phone: {
+      type: String,
+      required: [true, "Phone number is required"],
+      trim: true,
+    },
+    subject: {
         type: String,
-        required: [true, "title is required"],
+        required: [true, "subject is required"],
         trim: true,
         maxlength: 150,
     },
@@ -35,7 +45,7 @@ const supportSchema = new Schema<ISupport>({
     status: {
         type: String,
         enum: SUPPORT_STATUS_VALUES,
-        default: SUPPORT_STATUS.NEW,
+        default: SUPPORT_STATUS.OPEN,
         index: true
     },
 }, {

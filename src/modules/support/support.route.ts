@@ -4,6 +4,7 @@ import SupportController from "./support.controller";
 import { getAllSupportsValidationSchema, supportValidationSchema } from "./support.validation";
 import authMiddleware from "../../middlewares/authMiddleware";
 import { USER_ROLES } from "../user/user.constant";
+import subAgentAuthMiddleware from "../../middlewares/subAgentAuthMIddleware";
 ;
 
 const router = express.Router();
@@ -11,7 +12,6 @@ const router = express.Router();
 
 router.post(
     "/submit",
-    authMiddleware(USER_ROLES.PATIENT, USER_ROLES.DOCTOR),
     validationMiddleware(supportValidationSchema),
     SupportController.submitSupportRequest
 );
@@ -22,5 +22,20 @@ router.get(
     validationMiddleware(getAllSupportsValidationSchema),
     SupportController.getSupports
 );
+
+router.get(
+    "/my-supports",
+    authMiddleware(USER_ROLES.AGENT, USER_ROLES.DOCTOR, USER_ROLES.PATIENT),
+    validationMiddleware(getAllSupportsValidationSchema),
+    SupportController.getMySupports
+);
+
+router.get(
+    "/sub-agent-supports",
+    subAgentAuthMiddleware(),
+    validationMiddleware(getAllSupportsValidationSchema),
+    SupportController.getMySupports
+);
+
 const SupportRoutes = router;
 export default SupportRoutes;
