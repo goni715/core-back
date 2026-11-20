@@ -3,6 +3,7 @@ import { SUPPORT_STATUS_VALUES } from "./support.constant";
 import { requiredStringSchema } from "../../schemas/required.schema";
 import { enumSchema } from "../../schemas/enum.schema";
 import { emailZodSchema, fullNameZodSchema, phoneNumberZodSchema } from "../auth/auth.validation";
+import objectIdSchema from "../../schemas/objectId.schema";
 
 export const dateFormatRegex = /^20\d{2}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 
@@ -47,3 +48,13 @@ export const getAllSupportsValidationSchema = z.object({
         date: dateZodSchema.optional(),
     })
 });
+
+
+export const updateSupportStatusValidationSchema = z.object({
+    params: z.object({
+        supportId: objectIdSchema('supportId')
+    }),
+    body: z.object({
+        status: enumSchema('status', ['in_progress', 'closed'])
+    })
+})

@@ -34,9 +34,22 @@ const getMySupports = asyncHandler(async (req, res) => {
 });
 
 
+const updateStatus = asyncHandler(async (req, res) => {
+    const { supportId } = req.params;
+    const { status } = req.body;
+    const result = await SupportService.updateStatus(supportId as string, status);
+    res.status(200).json({
+        success: true,
+        message: "Support status is updated successfully.",
+        data: result
+    })
+})
+
+
 const SupportController = {
     submitSupportRequest,
     getSupports,
-    getMySupports
+    getMySupports,
+    updateStatus
 }
 export default SupportController;

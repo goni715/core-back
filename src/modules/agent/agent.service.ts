@@ -4,17 +4,153 @@ import NotFoundError from "../../errors/NotFoundError";
 import { makeFilterQuery, makeSearchQuery } from "../../helpers/QueryBuilder";
 import deleteFromCloudinary from "../../utils/deleteFromCloudinary";
 import uploadToCloudinary from "../../utils/uploadToCloudinary";
-import { ACCOUNT_STATUS } from "../user/user.constant";
+import { ACCOUNT_STATUS, USER_ROLES } from "../user/user.constant";
 import UserModel from "../user/user.model";
 import {
   AGENT_APPROVAL_STATUS,
   AGENT_SEARCHABLE_FIELDS,
 } from "./agent.constant";
 import {
+  TAgentPayload,
   TAgentQuery,
   TUpdateAgentPayload,
 } from "./agent.interface";
 import AgentModel from "./agent.model";
+import ForbiddenError from "../../errors/ForbiddenError";
+
+
+/*============ create agent ============*/
+const createAgent = async (payload: TAgentPayload) => {
+  const { email, phone, fullName, agencyName, password } = payload;
+
+  // 1. Check if user with this email already exists
+  const existingUser = await UserModel.findOne({ email });
+  if (existingUser) {
+
+    // If account is already verified or active
+    if (
+      existingUser.status === ACCOUNT_STATUS.ACTIVE ||
+      existingUser.isEmailVerified
+    ) {
+      throw new ConflictError("An account with this email already exists.");
+    }
+
+    // If phone number is changed, check uniqueness
+    if (phone && phone !== existingUser.phone) {
+      const existingPhone = await UserModel.findOne({
+        phone,
+        _id: { $ne: existingUser._id },
+      });
+      if (existingPhone) {
+        if (existingPhone.status === ACCOUNT_STATUS.BLOCKED) {
+          throw new ForbiddenError("Your account is blocked.");
+        }
+        if (
+          existingPhone.status === ACCOUNT_STATUS.ACTIVE ||
+          existingPhone.isEmailVerified
+        ) {
+          throw new ConflictError(
+            "An account with this phone number already exists.",
+          );
+        }
+      }
+      existingUser.phone = phone;
+    }
+
+    if (fullName) existingUser.fullName = fullName;
+    if (password) existingUser.password = password; // pre-save hook will hash password
+
+    //transaction & rollback
+    const session = await mongoose.startSession();
+
+    try {
+      session.startTransaction();
+
+      // Save updated user data
+      await existingUser.save({ session });
+
+      // Update agent profile
+      await AgentModel.updateOne(
+        { userId: existingUser._id },
+        {
+          agencyName,
+        },
+        { session, upsert: true },
+      );
+
+      //transaction success
+      await session.commitTransaction();
+
+      return null
+    } catch (err) {
+      await session.abortTransaction();
+      throw err;
+    } finally {
+      await session.endSession();
+    }
+  }
+
+  // 2. Check if user with this phone already exists
+  if (phone) {
+    const existingPhone = await UserModel.findOne({ phone });
+    if (existingPhone) {
+      if (existingPhone.status === ACCOUNT_STATUS.BLOCKED) {
+        throw new ForbiddenError("Your account is blocked.");
+      }
+      if (
+        existingPhone.status === ACCOUNT_STATUS.ACTIVE ||
+        existingPhone.isEmailVerified
+      ) {
+        throw new ConflictError(
+          "An account with this phone number already exists.",
+        );
+      }
+    }
+  }
+
+  // 4. Transaction to create User, Agent profile, and OTP
+  const session = await mongoose.startSession();
+  try {
+    session.startTransaction();
+
+    // Create User 
+    const newUser = await UserModel.create(
+      [
+        {
+          fullName,
+          email,
+          phone,
+          password,
+          role: USER_ROLES.AGENT,
+          isEmailVerified: false,
+          status: ACCOUNT_STATUS.ACTIVE,
+        },
+      ],
+      { session },
+    );
+
+
+    // Create Agent profile (approvalStatus: pending, status: active)
+    await AgentModel.create(
+      [
+        {
+          userId: newUser?.[0]?._id!,
+          agencyName,
+          approvalStatus: AGENT_APPROVAL_STATUS.PENDING,
+        },
+      ],
+      { session },
+    );
+
+    await session.commitTransaction();
+    return null;
+  } catch (err) {
+    await session.abortTransaction();
+    throw err;
+  } finally {
+    await session.endSession();
+  }
+};
 
 /*=========== admin approval / rejection ============*/
 const approveOrRejectAgent = async (
@@ -253,6 +389,7 @@ const deleteAgent = async (agentId: string) => {
 };
 
 const AgentService = {
+  createAgent,
   approveOrRejectAgent,
   getAgents,
   getSingleAgent,

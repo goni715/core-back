@@ -1,5 +1,5 @@
 import { makeFilterQuery, makeSearchQuery } from "../../helpers/QueryBuilder";
-import { ISupport, TSupportQuery } from "./support.interface";
+import { ISupport, TSupportQuery, TSupportStatus } from "./support.interface";
 import SupportModel from "./support.model";
 import { SUPPORT_SEARCHABLE_FIELDS, SUPPORT_STATUS } from "./support.constant";
 import ConflictError from "../../errors/ConflictError";
@@ -58,30 +58,6 @@ const getSupports = async (query: TSupportQuery) => {
 
     //common pipeline stage
     const commonPipeline: PipelineStage[] = [
-        {
-            $lookup: {
-                from: 'users',
-                localField: 'userId',
-                foreignField: '_id',
-                as: 'user'
-            }
-        },
-        { $unwind: '$user' },
-        {
-            $project: {
-                _id: 1,
-                fullName: "$user.fullName",
-                email: "$user.email",
-                phone: "$user.phone",
-                title: "$title",
-                message: "$message",
-                replyMessage: "$replyMessage",
-                replyAt: "$replyAt",
-                status: "$status",
-                createdAt: "$createdAt",
-                updatedAt: "$updatedAt",
-            }
-        },
         {
             $match: {
                 ...searchQuery,
@@ -241,6 +217,24 @@ const closeSupport = async (supportId: string) => {
     return result;
 };
 
+
+/* ==================== Update Support status ==================== */
+const updateStatus = async (supportId: string, status: TSupportStatus) => {
+    const support = await SupportModel.findById(supportId);
+    if (!support) {
+        throw new NotFoundError("Support not found with the provided ID");
+    }
+
+    //update contact
+    const result = await SupportModel.updateOne(
+        { _id: supportId },
+        { status },
+        { runValidators: true }
+    );
+
+    return result;
+};
+
 /* ==================== Delete Support ==================== */
 const deleteSupport = async (supportId: string) => {
     const support = await SupportModel.findById(supportId);
@@ -261,6 +255,7 @@ const SupportService = {
     replySupport,
     deleteSupport,
     closeSupport,
+    updateStatus,
     getMySupports
 }
 

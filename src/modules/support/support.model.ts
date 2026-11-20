@@ -3,21 +3,27 @@ import { ISupport } from './support.interface';
 import { SUPPORT_STATUS, SUPPORT_STATUS_VALUES } from './support.constant';
 
 const supportSchema = new Schema<ISupport>({
-     fullName: {
-      type: String,
-      required: [true, "Full name is required"],
-      trim: true,
+    ticket: {
+        type: String,
+        required: [true, "Ticket is required"],
+        trim: true,
+        unique: true,
+    },
+    fullName: {
+        type: String,
+        required: [true, "Full name is required"],
+        trim: true,
     },
     email: {
-      type: String,
-      required: [true, "Email is required"],
-      lowercase: true,
-      trim: true,
+        type: String,
+        required: [true, "Email is required"],
+        lowercase: true,
+        trim: true,
     },
     phone: {
-      type: String,
-      required: [true, "Phone number is required"],
-      trim: true,
+        type: String,
+        required: [true, "Phone number is required"],
+        trim: true,
     },
     subject: {
         type: String,

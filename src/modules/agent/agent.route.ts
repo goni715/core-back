@@ -11,8 +11,16 @@ import {
 import authMiddleware from "../../middlewares/authMiddleware";
 import { USER_ROLES } from "../user/user.constant";
 import upload from "../../helpers/upload";
+import { registerAgentValidationSchema } from "../auth/auth.validation";
 
 const router = express.Router();
+
+router.post(
+  "/create-agent",
+  authMiddleware(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN),
+  validationMiddleware(registerAgentValidationSchema),
+  AgentController.createAgent,
+);
 
 /* Admin: Approve or Reject agent registration */
 router.patch(

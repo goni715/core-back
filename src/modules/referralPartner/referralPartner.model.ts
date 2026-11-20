@@ -1,5 +1,4 @@
 import { Schema, model } from "mongoose";
-import { hashedPassword } from "../../helpers/PasswordHelper";
 import {
   REFERRAL_PARTNER_STATUS,
   REFERRAL_PARTNER_STATUS_VALUES,
@@ -17,7 +16,8 @@ const referralPartnerSchema = new Schema<IReferralPartner>(
     agentUserId: {
       type: Schema.Types.ObjectId,
       ref: "User",
-      required: [true, "agentUserId is required"],
+      required: false,
+      default: null,
       index: true,
     },
     fullName: {

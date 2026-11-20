@@ -1,7 +1,7 @@
 import express from "express";
 import validationMiddleware from "../../middlewares/validationMiddleware";
 import SupportController from "./support.controller";
-import { getAllSupportsValidationSchema, supportValidationSchema } from "./support.validation";
+import { getAllSupportsValidationSchema, supportValidationSchema, updateSupportStatusValidationSchema } from "./support.validation";
 import authMiddleware from "../../middlewares/authMiddleware";
 import { USER_ROLES } from "../user/user.constant";
 import subAgentAuthMiddleware from "../../middlewares/subAgentAuthMIddleware";
@@ -35,6 +35,13 @@ router.get(
     subAgentAuthMiddleware(),
     validationMiddleware(getAllSupportsValidationSchema),
     SupportController.getMySupports
+);
+
+router.patch(
+    "/update-status/:supportId",
+    authMiddleware(USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
+    validationMiddleware(updateSupportStatusValidationSchema),
+    SupportController.updateStatus
 );
 
 const SupportRoutes = router;
