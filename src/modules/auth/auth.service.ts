@@ -43,6 +43,8 @@ import uploadToCloudinary from "../../utils/uploadToCloudinary";
 import deleteFromCloudinary from "../../utils/deleteFromCloudinary";
 import { TAgentPayload } from "../agent/agent.interface";
 import ReferralPartnerModel from "../referralPartner/referralPartner.model";
+import { TRegisterReferralPartnerPayload } from "../referralPartner/referralPartner.interface";
+import { REFERRAL_PARTNER_STATUS } from "../referralPartner/referralPartner.constant";
 
 /*============ register patient (With OTP) ============*/
 const registerPatient = async (payload: IUser) => {
@@ -724,6 +726,44 @@ const registerAgent = async (payload: TAgentPayload) => {
   } finally {
     await session.endSession();
   }
+};
+
+/* ==================== Register Partner by Referral Link (Self-Registration) ==================== */
+const registerPartner = async (payload: TRegisterReferralPartnerPayload) => {
+  const { fullName, email, phone, agencyName, password } =
+    payload;
+
+  // 3. Check for existing partner with this email
+  const existingPartner = await ReferralPartnerModel.findOne({
+    email
+  });
+
+  if (existingPartner) {
+    throw new ConflictError(
+      "A referral partner with this email is already registered.",
+    );
+  }
+
+  // hash password
+  const hashPass = await hashedPassword(password);
+
+  // 4. Create new partner record
+  await ReferralPartnerModel.create({
+    fullName,
+    email,
+    phone,
+    agencyName,
+    password: hashPass,
+    status: REFERRAL_PARTNER_STATUS.ACTIVE,
+    joinedDate: new Date(),
+    lastActiveAt: new Date(),
+    cases: 0,
+    ongoing: 0,
+    done: 0,
+    earnings: 0,
+  });
+
+  return null;
 };
 
 /*============ verify account  ============*/
@@ -1807,6 +1847,7 @@ const AuthService = {
   registerPatient,
   registerDoctor,
   registerAgent,
+  registerPartner,
   verifyAccount,
   resendVerificationEmail,
   loginUser,

@@ -205,3 +205,16 @@ export const deleteAccountValidationSchema = z.object({
     password: passwordZodSchema,
   }),
 });
+
+
+
+/* ==================== Register Referral Partner (Self Registration) ==================== */
+export const registerPartnerValidationSchema = z.object({
+  body: z.object({
+    fullName: requiredStringSchema("fullName"),
+    email: emailZodSchema,
+    phone: phoneNumberZodSchema,
+    agencyName: requiredStringSchema("agencyName"),
+    password: passwordZodSchema,
+  }),
+});

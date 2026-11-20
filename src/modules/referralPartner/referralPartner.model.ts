@@ -9,8 +9,9 @@ const referralPartnerSchema = new Schema<IReferralPartner>(
   {
     refCode: {
       type: String,
-      required: [true, "Ref code is required"],
+      required: false,
       trim: true,
+      default: null,
       index: true,
     },
     agentUserId: {

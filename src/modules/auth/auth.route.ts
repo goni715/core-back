@@ -11,6 +11,7 @@ import {
   refreshTokenValidationSchema,
   registerAgentValidationSchema,
   registerDoctorValidationSchema,
+  registerPartnerValidationSchema,
   registerPatientValidationSchema,
   setNewPasswordValidationSchema,
   verifyOtpValidationSchema,
@@ -39,6 +40,12 @@ router.post(
   "/register-agent",
   validationMiddleware(registerAgentValidationSchema),
   AuthController.registerAgent,
+);
+
+router.post(
+  "/register-partner",
+  validationMiddleware(registerPartnerValidationSchema),
+  AuthController.registerPartner,
 );
 
 router.post(
