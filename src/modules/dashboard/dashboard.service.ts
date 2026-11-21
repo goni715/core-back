@@ -241,10 +241,276 @@ const getSubAgentStats = async (subAgentIdentifier: string) => {
     };
 };
 
+/* ==================== Agent Dashboard Overview Stats ==================== */
+const getAgentStats = async (agentUserId: string) => {
+    let agentObjectId: Types.ObjectId | null = null;
+
+    if (agentUserId && isObjectId(agentUserId)) {
+        agentObjectId = new Types.ObjectId(agentUserId);
+    } else if (agentUserId) {
+        const agentUser = await UserModel.findOne({
+            email: String(agentUserId).trim().toLowerCase(),
+        }).lean();
+        if (agentUser) {
+            agentObjectId = agentUser._id as Types.ObjectId;
+        }
+    }
+
+    const defaultStats = {
+        totalPatients: 0,
+        referralPartners: 0,
+        ongoingCases: 0,
+        completed: 0,
+        completedCases: 0,
+        networkEarnings: 0,
+        totalEarnings: 0,
+        currency: "TK",
+        breakdown: {
+            agentCommission: 0,
+            subAgentCommission: 0,
+            paidAgentCommission: 0,
+        },
+    };
+
+    if (!agentObjectId) {
+        return defaultStats;
+    }
+
+    // 1. Total patients under this agent
+    const totalPatientsPromise = AgentPatientModel.countDocuments({
+        agentUserId: agentObjectId,
+    });
+
+    // 2. Total referral partners under this agent
+    const referralPartnersPromise = ReferralPartnerModel.countDocuments({
+        agentUserId: agentObjectId,
+    });
+
+    // 3. Ongoing cases
+    const ongoingCasesPromise = AgentPatientModel.countDocuments({
+        agentUserId: agentObjectId,
+        status: PATIENT_CASE_STATUS.ONGOING,
+    });
+
+    // 4. Completed cases
+    const completedCasesPromise = AgentPatientModel.countDocuments({
+        agentUserId: agentObjectId,
+        status: PATIENT_CASE_STATUS.COMPLETED,
+    });
+
+    // 5. Network earnings from AgentPatientModel & ReferralPartnerModel
+    const earningsAggregationPromise = AgentPatientModel.aggregate([
+        {
+            $match: {
+                agentUserId: agentObjectId,
+            },
+        },
+        {
+            $group: {
+                _id: null,
+                totalAgentCommission: {
+                    $sum: { $ifNull: ["$agentCommissionFee", 0] },
+                },
+                totalSubAgentCommission: {
+                    $sum: {
+                        $ifNull: [
+                            "$subAgentCommissionFee",
+                            { $ifNull: ["$subAgentCommission", 0] },
+                        ],
+                    },
+                },
+                paidAgentCommission: {
+                    $sum: {
+                        $cond: [
+                            {
+                                $eq: [
+                                    "$agentPaymentStatus",
+                                    COMMISSION_PAYMENT_STATUS.PAID,
+                                ],
+                            },
+                            { $ifNull: ["$agentCommissionFee", 0] },
+                            0,
+                        ],
+                    },
+                },
+            },
+        },
+    ]);
+
+    const partnerTotalsPromise = ReferralPartnerModel.aggregate([
+        { $match: { agentUserId: agentObjectId } },
+        {
+            $group: {
+                _id: null,
+                totalEarnings: { $sum: { $ifNull: ["$earnings", 0] } },
+            },
+        },
+    ]);
+
+    const [
+        totalPatients,
+        referralPartners,
+        ongoingCases,
+        completedCases,
+        earningsAggregation,
+        partnerTotals,
+    ] = await Promise.all([
+        totalPatientsPromise,
+        referralPartnersPromise,
+        ongoingCasesPromise,
+        completedCasesPromise,
+        earningsAggregationPromise,
+        partnerTotalsPromise,
+    ]);
+
+    const agg = earningsAggregation[0] || {};
+    const totalAgentComm = agg.totalAgentCommission || 0;
+    const totalSubAgentComm = agg.totalSubAgentCommission || 0;
+    const partnerEarnings = partnerTotals[0]?.totalEarnings || 0;
+
+    // Network earnings is combined commission across the network
+    const networkEarnings =
+        totalAgentComm + totalSubAgentComm > 0
+            ? totalAgentComm + totalSubAgentComm
+            : partnerEarnings;
+
+    return {
+        totalPatients,
+        referralPartners,
+        ongoingCases,
+        completed: completedCases,
+        completedCases,
+        networkEarnings,
+        totalEarnings: networkEarnings,
+        currency: "TK",
+        breakdown: {
+            agentCommission: totalAgentComm,
+            subAgentCommission: totalSubAgentComm,
+            paidAgentCommission: agg.paidAgentCommission || 0,
+        },
+    };
+};
+
+/* ==================== Agent Monthly Referrals (12 Months Chart) ==================== */
+const getAgentMonthlyReferrals = async (
+    agentUserId: string,
+    yearQuery?: string | number,
+) => {
+    let agentObjectId: Types.ObjectId | null = null;
+
+    if (agentUserId && isObjectId(agentUserId)) {
+        agentObjectId = new Types.ObjectId(agentUserId);
+    } else if (agentUserId) {
+        const agentUser = await UserModel.findOne({
+            email: String(agentUserId).trim().toLowerCase(),
+        }).lean();
+        if (agentUser) {
+            agentObjectId = agentUser._id as Types.ObjectId;
+        }
+    }
+
+    const targetYear = yearQuery ? Number(yearQuery) : new Date().getFullYear();
+    const startOfYear = new Date(`${targetYear}-01-01T00:00:00.000Z`);
+    const endOfYear = new Date(`${targetYear}-12-31T23:59:59.999Z`);
+
+    const monthNames = [
+        "Jan",
+        "Feb",
+        "Mar",
+        "Apr",
+        "May",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct",
+        "Nov",
+        "Dec",
+    ];
+
+    if (!agentObjectId) {
+        const emptyMonthlyData = monthNames.map((name, index) => ({
+            month: name,
+            monthNumber: index + 1,
+            referrals: 0,
+            cases: 0,
+            count: 0,
+        }));
+
+        return {
+            year: targetYear,
+            totalReferrals: 0,
+            totalCases: 0,
+            averageCasesPerMonth: 0,
+            averageCasesPerMonthFormatted: "Average: 0 cases / month",
+            monthlyData: emptyMonthlyData,
+        };
+    }
+
+    const monthlyAggregation = await AgentPatientModel.aggregate([
+        {
+            $addFields: {
+                submissionDate: {
+                    $ifNull: ["$timeline.submittedAt", "$createdAt"],
+                },
+            },
+        },
+        {
+            $match: {
+                agentUserId: agentObjectId,
+                submissionDate: { $gte: startOfYear, $lte: endOfYear },
+            },
+        },
+        {
+            $group: {
+                _id: { $month: "$submissionDate" },
+                count: { $sum: 1 },
+            },
+        },
+        {
+            $sort: { _id: 1 },
+        },
+    ]);
+
+    const monthlyMap: Record<number, number> = {};
+    let totalReferrals = 0;
+
+    monthlyAggregation.forEach((item) => {
+        monthlyMap[item._id] = item.count;
+        totalReferrals += item.count;
+    });
+
+    const monthlyData = monthNames.map((name, index) => {
+        const monthNumber = index + 1;
+        const count = monthlyMap[monthNumber] || 0;
+        return {
+            month: name,
+            monthNumber,
+            referrals: count,
+            cases: count,
+            count,
+        };
+    });
+
+    const averageCasesPerMonth = Number((totalReferrals / 12).toFixed(1));
+    const averageRounded = Math.round(totalReferrals / 12);
+
+    return {
+        year: targetYear,
+        totalReferrals,
+        totalCases: totalReferrals,
+        averageCasesPerMonth,
+        averageCasesPerMonthFormatted: `Average: ${averageRounded} cases / month`,
+        monthlyData,
+    };
+};
+
 const DashboardService = {
     getStats,
     getDoctorStats,
     getSubAgentStats,
+    getAgentStats,
+    getAgentMonthlyReferrals,
 };
 
 export default DashboardService;

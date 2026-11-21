@@ -7,6 +7,13 @@ export const PATIENT_CASE_STATUS = {
   CANCELLED: "cancelled",
 } as const;
 
+export const DOCUMENT_SOURCE = {
+  GOOGLE_DRIVE: "google_drive",
+  WHATSAPP: "whatsapp",
+} as const;
+
+export const DOCUMENT_SOURCE_VALUES = Object.values(DOCUMENT_SOURCE);
+
 export const PATIENT_CASE_STATUS_VALUES = Object.values(PATIENT_CASE_STATUS);
 
 export const PATIENT_GENDER = {

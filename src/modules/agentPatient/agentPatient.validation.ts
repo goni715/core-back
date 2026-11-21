@@ -3,6 +3,7 @@ import { enumSchema } from "../../schemas/enum.schema";
 import { requiredNumberSchema, requiredStringSchema } from "../../schemas/required.schema";
 import {
   COMMISSION_PAYMENT_STATUS_VALUES,
+  DOCUMENT_SOURCE_VALUES,
   PATIENT_CASE_STATUS_VALUES,
   PATIENT_GENDER_VALUES,
 } from "./agentPatient.constant";
@@ -37,12 +38,21 @@ const driveLinkUrlSchema = z
   .string({
     error: (issue) =>
       issue.input === undefined
-        ? "driveLink is required"
-        : "driveLink must be a string",
+        ? "Link is required"
+        : "Link must be a string",
   })
   .trim()
-  .min(1, "driveLink is required")
-  .url("driveLink must be a valid URL");
+  .min(1, "Link is required")
+  .url("Link must be a valid URL");
+
+const optionalUrlSchema = z
+  .string()
+  .trim()
+  .url("Must be a valid URL")
+  .optional()
+  .nullable()
+  .or(z.literal(""));
+
 
 export const createAgentPatientValidationSchema = z.object({
   body: z
@@ -54,9 +64,10 @@ export const createAgentPatientValidationSchema = z.object({
       treatmentType: requiredStringSchema("treatmentType"),
       symptoms: requiredStringSchema("symptoms"),
       preferredCountry: requiredStringSchema("preferredCountry"),
-      budgetRange: requiredStringSchema('budgetRange'),
-      driveLink: driveLinkUrlSchema,
-    }),
+      budgetRange: requiredStringSchema("budgetRange"),
+      documentSource: enumSchema("documentSource", DOCUMENT_SOURCE_VALUES),
+      link: driveLinkUrlSchema,
+    })
 });
 
 export const updateAgentPatientValidationSchema = z.object({
@@ -73,6 +84,8 @@ export const updateAgentPatientValidationSchema = z.object({
       symptoms: requiredStringSchema("symptoms").optional(),
       preferredCountry: requiredStringSchema("preferredCountry").optional(),
       budgetRange: requiredStringSchema("budgetRange").optional(),
+      documentSource: enumSchema("documentSource", DOCUMENT_SOURCE_VALUES).optional(),
+      link: driveLinkUrlSchema.optional().nullable(),
       driveLink: driveLinkUrlSchema.optional().nullable(),
     })
     .refine((data) => Object.values(data).some((val) => val !== undefined), {

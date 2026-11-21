@@ -45,6 +45,24 @@ router.get(
 );
 
 router.get(
+  "/agent-stats",
+  authMiddleware(USER_ROLES.AGENT, USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
+  AgentPatientController.getAgentStats,
+);
+
+router.get(
+  "/agent-monthly-referrals",
+  authMiddleware(USER_ROLES.AGENT, USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
+  AgentPatientController.getAgentMonthlyReferrals,
+);
+
+router.get(
+  "/monthly-referrals/by-agent",
+  authMiddleware(USER_ROLES.AGENT, USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
+  AgentPatientController.getAgentMonthlyReferrals,
+);
+
+router.get(
   "/status-stats/by-sub-agent",
   subAgentAuthMiddleware(),
   AgentPatientController.getSubAgentStatusStats,

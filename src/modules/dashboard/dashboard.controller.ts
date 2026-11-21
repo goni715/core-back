@@ -35,10 +35,42 @@ const getSubAgentStats = asyncHandler(async (req, res) => {
     });
 });
 
+const getAgentStats = asyncHandler(async (req, res) => {
+    const agentUserId =
+        (req.query.agentUserId as string) ||
+        ((req.user?.userId || req.headers.userId) as string);
+    const result = await DashboardService.getAgentStats(agentUserId);
+
+    res.status(200).json({
+        success: true,
+        message: 'Agent stats retrieved successfully',
+        data: result,
+    });
+});
+
+const getAgentMonthlyReferrals = asyncHandler(async (req, res) => {
+    const agentUserId =
+        (req.query.agentUserId as string) ||
+        ((req.user?.userId || req.headers.userId) as string);
+    const year = req.query.year as string;
+    const result = await DashboardService.getAgentMonthlyReferrals(
+        agentUserId,
+        year,
+    );
+
+    res.status(200).json({
+        success: true,
+        message: 'Agent monthly referrals retrieved successfully',
+        data: result,
+    });
+});
+
 const DashboardController = {
     getStats,
     getDoctorStats,
     getSubAgentStats,
+    getAgentStats,
+    getAgentMonthlyReferrals,
 };
 
 export default DashboardController

@@ -2,6 +2,8 @@ import { Schema, model } from "mongoose";
 import {
   COMMISSION_PAYMENT_STATUS,
   COMMISSION_PAYMENT_STATUS_VALUES,
+  DOCUMENT_SOURCE,
+  DOCUMENT_SOURCE_VALUES,
   PATIENT_CASE_STATUS,
   PATIENT_CASE_STATUS_VALUES,
   PATIENT_GENDER_VALUES,
@@ -151,7 +153,16 @@ const agentPatientSchema = new Schema<IAgentPatient>(
       required: [true, "Budget range is required"],
       trim: true,
     },
-    driveLink: {
+    documentSource: {
+      type: String,
+      enum: {
+        values: DOCUMENT_SOURCE_VALUES,
+        message: "{VALUE} is not a valid document source",
+      },
+      default: DOCUMENT_SOURCE.GOOGLE_DRIVE,
+      index: true,
+    },
+    link: {
       type: String,
       trim: true,
       default: null,
@@ -190,6 +201,10 @@ agentPatientSchema.index({ agentUserId: 1, status: 1 });
 agentPatientSchema.index({ agentUserId: 1, subAgentId: 1 });
 agentPatientSchema.index({ agentUserId: 1, createdAt: -1 });
 agentPatientSchema.index({ createdAt: -1 });
+
+agentPatientSchema.virtual("driveLink").get(function () {
+  return this.link;
+});
 
 const AgentPatientModel = model<IAgentPatient>(
   "AgentPatient",

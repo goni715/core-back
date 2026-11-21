@@ -7,6 +7,7 @@ import isObjectId from "../../utils/isObjectId";
 import {
   AGENT_PATIENT_SEARCHABLE_FIELDS,
   COMMISSION_PAYMENT_STATUS,
+  DOCUMENT_SOURCE,
   PATIENT_CASE_STATUS,
 } from "./agentPatient.constant";
 import {
@@ -16,24 +17,27 @@ import {
   TCreateAgentPatientPayload,
   TPatientCaseStatus,
   TPatientStatusCounts,
-  TUpdateAgentCommissionPayload,
   TUpdateAgentPatientPayload,
-  TUpdateSubAgentCommissionPayload,
   TUpdateAgentPaymentStatusPayload,
   TUpdateSubAgentPaymentStatusPayload,
 } from "./agentPatient.interface";
 import AgentPatientModel from "./agentPatient.model";
 import ReferralPartnerModel from "../referralPartner/referralPartner.model";
 import UserModel from "../user/user.model";
-import ForbiddenError from "../../errors/ForbiddenError";
 
 /* ==================== Create Patient Case By Agent ==================== */
 const submitPatientByAgent = async (
   agentUserId: string,
   payload: TCreateAgentPatientPayload,
 ) => {
+  const { driveLink, ...restPayload } = payload;
+  const link = restPayload.link || driveLink || "";
+  const documentSource = restPayload.documentSource || DOCUMENT_SOURCE.GOOGLE_DRIVE;
+
   await AgentPatientModel.create({
-    ...payload,
+    ...restPayload,
+    link,
+    documentSource,
     caseId: generateCaseId(),
     agentUserId: new Types.ObjectId(agentUserId),
   });
@@ -51,19 +55,24 @@ const submitPatientBySubAgent = async (
     throw new NotFoundError("Sub-agent account not found");
   }
 
-  const agentUserId = subAgent.agentUserId ? subAgent.agentUserId : null;
-  
+  const { driveLink, ...restPayload } = payload;
+  const link = restPayload.link || driveLink || "";
+  const documentSource = restPayload.documentSource || DOCUMENT_SOURCE.GOOGLE_DRIVE;
+
   if (subAgent.agentUserId) {
     await AgentPatientModel.create({
-      ...payload,
+      ...restPayload,
+      link,
+      documentSource,
       caseId: generateCaseId(),
       agentUserId: subAgent.agentUserId,
       subAgentId: subAgent._id,
     });
-
   } else {
     await AgentPatientModel.create({
-      ...payload,
+      ...restPayload,
+      link,
+      documentSource,
       caseId: generateCaseId(),
       subAgentId: subAgent._id,
     });
@@ -292,7 +301,11 @@ const getPatientsByAgent = async (
         symptoms: 1,
         preferredCountry: 1,
         budgetRange: 1,
-        driveLink: { $ifNull: ["$driveLink", null] },
+        documentSource: {
+          $ifNull: ["$documentSource", DOCUMENT_SOURCE.GOOGLE_DRIVE],
+        },
+        link: { $ifNull: ["$link", "$driveLink"] },
+        driveLink: { $ifNull: ["$link", "$driveLink"] },
         status: 1,
         timeline: 1,
         createdAt: 1,
@@ -627,7 +640,11 @@ const getPatientsBySubAgent = async (
         symptoms: 1,
         preferredCountry: 1,
         budgetRange: 1,
-        driveLink: { $ifNull: ["$driveLink", null] },
+        documentSource: {
+          $ifNull: ["$documentSource", DOCUMENT_SOURCE.GOOGLE_DRIVE],
+        },
+        link: { $ifNull: ["$link", "$driveLink"] },
+        driveLink: { $ifNull: ["$link", "$driveLink"] },
         status: 1,
         timeline: 1,
         createdAt: 1,
@@ -940,7 +957,11 @@ const getAllPatientsByAdmin = async (query: TAgentPatientQuery) => {
         symptoms: 1,
         preferredCountry: 1,
         budgetRange: 1,
-        driveLink: { $ifNull: ["$driveLink", null] },
+        documentSource: {
+          $ifNull: ["$documentSource", DOCUMENT_SOURCE.GOOGLE_DRIVE],
+        },
+        link: { $ifNull: ["$link", "$driveLink"] },
+        driveLink: { $ifNull: ["$link", "$driveLink"] },
         status: 1,
         timeline: 1,
         createdAt: 1,
@@ -1678,26 +1699,33 @@ const updatePatientByAgent = async (
   agentUserId: string,
   payload: TUpdateAgentPatientPayload,
 ) => {
-
-  const patient = await AgentPatientModel.findOne({
+  const query = {
     agentUserId: new Types.ObjectId(agentUserId),
-    _id: patientId,
-  });
+    ...(isObjectId(patientId)
+      ? { _id: new Types.ObjectId(patientId) }
+      : { caseId: patientId }),
+  };
+
+  const patient = await AgentPatientModel.findOne(query);
   if (!patient) {
     throw new NotFoundError("Patient case not found");
   }
 
-  //update patient
-  const result = await AgentPatientModel.updateOne({
-    agentUserId: new Types.ObjectId(agentUserId),
-    _id: patientId,
-  },
-    payload
-  )
+  const updateData: Record<string, unknown> = { ...payload };
+  if (payload.link !== undefined) {
+    updateData.link = payload.link;
+  } else if ((payload as any).driveLink !== undefined) {
+    updateData.link = (payload as any).driveLink;
+  }
+
+  const result = await AgentPatientModel.findOneAndUpdate(
+    query,
+    { $set: updateData },
+    { new: true, returnDocument: "after", runValidators: true },
+  );
 
   return result;
 };
-
 
 /* ==================== Update Patient Case ==================== */
 const updatePatientBySubAgent = async (
@@ -1705,22 +1733,46 @@ const updatePatientBySubAgent = async (
   subAgentId: string,
   payload: TUpdateAgentPatientPayload,
 ) => {
+  // Resolve subAgentId
+  let partnerObjectId: Types.ObjectId | null = null;
+  if (isObjectId(subAgentId)) {
+    partnerObjectId = new Types.ObjectId(subAgentId);
+  } else {
+    const partner = await ReferralPartnerModel.findOne({
+      $or: [
+        { refCode: String(subAgentId).trim().toUpperCase() },
+        { email: String(subAgentId).trim().toLowerCase() },
+      ],
+    });
+    if (partner) {
+      partnerObjectId = partner._id as Types.ObjectId;
+    }
+  }
 
-  const patient = await AgentPatientModel.findOne({
-    subAgentId: new Types.ObjectId(subAgentId),
-    _id: patientId,
-  });
+  const query = {
+    subAgentId: partnerObjectId || new Types.ObjectId(subAgentId),
+    ...(isObjectId(patientId)
+      ? { _id: new Types.ObjectId(patientId) }
+      : { caseId: patientId }),
+  };
+
+  const patient = await AgentPatientModel.findOne(query);
   if (!patient) {
     throw new NotFoundError("Patient case not found");
   }
 
-  //update patient
-  const result = await AgentPatientModel.updateOne({
-    subAgentId: new Types.ObjectId(subAgentId),
-    _id: patientId,
-  },
-    payload
-  )
+  const updateData: Record<string, unknown> = { ...payload };
+  if (payload.link !== undefined) {
+    updateData.link = payload.link;
+  } else if ((payload as any).driveLink !== undefined) {
+    updateData.link = (payload as any).driveLink;
+  }
+
+  const result = await AgentPatientModel.findOneAndUpdate(
+    query,
+    { $set: updateData },
+    { new: true, returnDocument: "after", runValidators: true },
+  );
 
   return result;
 };

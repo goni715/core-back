@@ -120,6 +120,52 @@ const getSubAgentStatusStats = asyncHandler(
   },
 );
 
+/* ==================== Get Agent Stats ==================== */
+const getAgentStats = asyncHandler(async (req: Request, res: Response) => {
+  const role = (req as any).user?.role || (req.headers.role as string);
+  const authUserId =
+    (req as any).user?.userId || (req.headers.userId as string);
+
+  const agentUserId =
+    (req.query.agentUserId as string) ||
+    (req.query.userId as string) ||
+    (role === USER_ROLES.AGENT ? authUserId : authUserId);
+
+  const result = await DashboardService.getAgentStats(agentUserId);
+
+  res.status(200).json({
+    success: true,
+    message: "Agent statistics retrieved successfully",
+    data: result,
+  });
+});
+
+/* ==================== Get Agent Monthly Referrals ==================== */
+const getAgentMonthlyReferrals = asyncHandler(
+  async (req: Request, res: Response) => {
+    const role = (req as any).user?.role || (req.headers.role as string);
+    const authUserId =
+      (req as any).user?.userId || (req.headers.userId as string);
+
+    const agentUserId =
+      (req.query.agentUserId as string) ||
+      (req.query.userId as string) ||
+      (role === USER_ROLES.AGENT ? authUserId : authUserId);
+
+    const year = req.query.year as string;
+    const result = await DashboardService.getAgentMonthlyReferrals(
+      agentUserId,
+      year,
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Agent monthly referrals retrieved successfully",
+      data: result,
+    });
+  },
+);
+
 /* ==================== Get Agent Commission Stats & 12 Months Chart ==================== */
 const getAgentCommissionStats = asyncHandler(
   async (req: Request, res: Response) => {
@@ -442,6 +488,8 @@ const AgentPatientController = {
   getAllPatientsByAdmin,
   getStatusStats,
   getSubAgentStatusStats,
+  getAgentStats,
+  getAgentMonthlyReferrals,
   getAgentCommissionStats,
   getSubAgentCommissionStats,
   getAgentAllCommissions,

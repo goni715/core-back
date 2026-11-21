@@ -4,6 +4,7 @@ import {
   PATIENT_CASE_STATUS,
   PATIENT_GENDER,
 } from "./agentPatient.constant";
+export type TDocumentSource = "google_drive" | "whatsapp";
 
 export type TPatientCaseStatus =
   (typeof PATIENT_CASE_STATUS)[keyof typeof PATIENT_CASE_STATUS];
@@ -27,11 +28,11 @@ export interface IAgentPatient extends Document {
   caseId: string;
   agentUserId: Types.ObjectId;
   subAgentId?: Types.ObjectId | null; // Optional Sub-Agent ObjectId
-  revenue:number;
-  agentCommissionPercentage:number;
+  revenue: number;
+  agentCommissionPercentage: number;
   agentCommissionFee: number;
   agentPaymentStatus: TCommissionPaymentStatus;
-  subAgentCommissionPercentage:number;
+  subAgentCommissionPercentage: number;
   subAgentCommissionFee: number;
   subAgentPaymentStatus: TCommissionPaymentStatus;
   fullName: string;
@@ -42,7 +43,8 @@ export interface IAgentPatient extends Document {
   symptoms: string;
   preferredCountry: string;
   budgetRange: string;
-  driveLink?: string | null;
+  documentSource: TDocumentSource;
+  link: string;
   status: TPatientCaseStatus;
   timeline: IPatientTimeline;
   createdAt?: Date;
@@ -59,6 +61,8 @@ export type TCreateAgentPatientPayload = {
   symptoms: string;
   preferredCountry: string;
   budgetRange: string;
+  documentSource: TDocumentSource;
+  link: string;
   driveLink?: string | null;
 };
 

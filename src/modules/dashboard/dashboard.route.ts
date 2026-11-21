@@ -38,5 +38,20 @@ router.get(
     DashboardController.getSubAgentStats,
 );
 
+/* ==================== Agent Portal Dashboard ==================== */
+// Overview stats cards: Total Patients, Referral Partners, Ongoing Cases, Completed, Network Earnings
+router.get(
+    '/agent-stats',
+    authMiddleware(USER_ROLES.AGENT, USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
+    DashboardController.getAgentStats,
+);
+
+// Monthly referrals chart (12 months year-wise)
+router.get(
+    '/agent-monthly-referrals',
+    authMiddleware(USER_ROLES.AGENT, USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
+    DashboardController.getAgentMonthlyReferrals,
+);
+
 const DashboardRoutes = router;
 export default DashboardRoutes;
