@@ -226,9 +226,6 @@ const getSubAgentStats = async (subAgentIdentifier: string) => {
         ongoingTreatment: ongoingCases,
         completedCases: completedCases,
         myReferralEarnings: referralEarnings,
-        totalCases,
-        ongoingCases,
-        totalEarnings: referralEarnings,
         currency: "TK",
         breakdown: {
             all: totalCases,
