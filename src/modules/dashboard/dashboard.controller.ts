@@ -22,10 +22,23 @@ const getDoctorStats = asyncHandler(async (req, res) => {
     });
 });
 
+const getSubAgentStats = asyncHandler(async (req, res) => {
+    const subAgentId =
+        (req.query.subAgentId as string) ||
+        ((req.user?.userId || req.headers.userId) as string);
+    const result = await DashboardService.getSubAgentStats(subAgentId);
+
+    res.status(200).json({
+        success: true,
+        message: 'Sub-agent stats retrieved successfully',
+        data: result,
+    });
+});
 
 const DashboardController = {
     getStats,
-    getDoctorStats
-}
+    getDoctorStats,
+    getSubAgentStats,
+};
 
 export default DashboardController

@@ -1,6 +1,6 @@
 import z from "zod";
 import { enumSchema } from "../../schemas/enum.schema";
-import { requiredStringSchema } from "../../schemas/required.schema";
+import { requiredNumberSchema, requiredStringSchema } from "../../schemas/required.schema";
 import {
   COMMISSION_PAYMENT_STATUS_VALUES,
   PATIENT_CASE_STATUS_VALUES,
@@ -162,60 +162,23 @@ export const getAllPatientsByAdminValidationSchema = z.object({
 
 export const updateAgentCommissionValidationSchema = z.object({
   params: z.object({
-    patientId: z
-      .string({
-        error: (issue) =>
-          issue.input === undefined
-            ? "patientId is required"
-            : "patientId must be a string",
-      })
-      .trim()
-      .min(1, "patientId is required"),
+    patientId: patientIdZodSchema,
   }),
   body: z.object({
-    agentCommissionFee: z.preprocess(
-      (val) =>
-        val !== undefined && val !== null && val !== "" ? Number(val) : val,
-      z
-        .number({
-          error: (issue) =>
-            issue.input === undefined
-              ? "agentCommissionFee is required"
-              : "agentCommissionFee must be a number",
-        })
-        .min(0, "agentCommissionFee cannot be negative"),
-    ),
+    agentCommissionPercentage: requiredNumberSchema('AgentCommissionPercentage'),
   }),
 });
 
 export const updateSubAgentCommissionValidationSchema = z.object({
   params: z.object({
-    patientId: z
-      .string({
-        error: (issue) =>
-          issue.input === undefined
-            ? "patientId is required"
-            : "patientId must be a string",
-      })
-      .trim()
-      .min(1, "patientId is required"),
+    patientId: patientIdZodSchema,
   }),
-  body: z
-    .object({
-      subAgentCommissionFee: z.preprocess(
-        (val) =>
-          val !== undefined && val !== null && val !== "" ? Number(val) : val,
-        z
-          .number({
-            error: (issue) =>
-              issue.input === undefined
-                ? "subAgentCommissionFee is required"
-                : "subAgentCommissionFee must be a number",
-          })
-          .min(0, "subAgentCommissionFee cannot be negative")
-      ),
-    })
+  body: z.object({
+    subAgentCommissionPercentage: requiredNumberSchema('subAgentCommissionPercentage'),
+  }),
 });
+
+
 
 export const updateAgentPaymentStatusValidationSchema = z.object({
   params: z.object({
@@ -283,4 +246,15 @@ export const updateSubAgentPaymentStatusValidationSchema = z.object({
         path: ["subAgentPaymentStatus"],
       },
     ),
+});
+
+
+export const updateRevenueValidationSchema = z.object({
+  params: z.object({
+    patientId: patientIdZodSchema
+  }),
+  body: z
+    .object({
+      revenue: requiredNumberSchema('revenue')
+    })
 });

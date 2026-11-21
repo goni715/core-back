@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import asyncHandler from "../../utils/asyncHandler";
 import AgentPatientService from "./agentPatient.service";
+import DashboardService from "../dashboard/dashboard.service";
 import { USER_ROLES } from "../user/user.constant";
 
 /* ==================== Create Patient Case ==================== */
@@ -102,6 +103,22 @@ const getStatusStats = asyncHandler(async (req: Request, res: Response) => {
     data: result,
   });
 });
+
+/* ==================== Get Sub-Agent Status Stats ==================== */
+const getSubAgentStatusStats = asyncHandler(
+  async (req: Request, res: Response) => {
+    const subAgentId =
+      (req.query.subAgentId as string) ||
+      (((req as any).user?.userId || req.headers.userId) as string);
+    const result = await DashboardService.getSubAgentStats(subAgentId);
+
+    res.status(200).json({
+      success: true,
+      message: "Sub-agent statistics retrieved successfully",
+      data: result,
+    });
+  },
+);
 
 /* ==================== Get Agent Commission Stats & 12 Months Chart ==================== */
 const getAgentCommissionStats = asyncHandler(
@@ -318,10 +335,11 @@ const deletePatient = asyncHandler(async (req: Request, res: Response) => {
 const updateAgentCommission = asyncHandler(
   async (req: Request, res: Response) => {
     const { patientId } = req.params;
+    const { agentCommissionPercentage } = req.body;
 
     const result = await AgentPatientService.updateAgentCommission(
       patientId as string,
-      req.body,
+      agentCommissionPercentage,
     );
 
     res.status(200).json({
@@ -336,10 +354,11 @@ const updateAgentCommission = asyncHandler(
 const updateSubAgentCommission = asyncHandler(
   async (req: Request, res: Response) => {
     const { patientId } = req.params;
+    const { subAgentCommissionPercentage } = req.body;
 
     const result = await AgentPatientService.updateSubAgentCommission(
       patientId as string,
-      req.body,
+      subAgentCommissionPercentage,
     );
 
     res.status(200).json({
@@ -396,6 +415,25 @@ const updateSubAgentPaymentStatus = asyncHandler(
   },
 );
 
+
+const updateRevenue = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { patientId } = req.params;
+    const { revenue } = req.body;
+
+    const result = await AgentPatientService.updateRevenue(
+      patientId as string,
+      revenue as number,
+    );
+
+    res.status(200).json({
+      success: true,
+      message: `Revenue updated successfully`,
+      data: result,
+    });
+  },
+);
+
 const AgentPatientController = {
   submitPatientByAgent,
   submitPatientBySubAgent,
@@ -403,6 +441,7 @@ const AgentPatientController = {
   getPatientsBySubAgent,
   getAllPatientsByAdmin,
   getStatusStats,
+  getSubAgentStatusStats,
   getAgentCommissionStats,
   getSubAgentCommissionStats,
   getAgentAllCommissions,
@@ -418,6 +457,7 @@ const AgentPatientController = {
   updateSubAgentCommission,
   updateAgentPaymentStatus,
   updateSubAgentPaymentStatus,
+  updateRevenue
 };
 
 export default AgentPatientController;

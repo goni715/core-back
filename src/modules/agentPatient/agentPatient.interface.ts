@@ -27,9 +27,12 @@ export interface IAgentPatient extends Document {
   caseId: string;
   agentUserId: Types.ObjectId;
   subAgentId?: Types.ObjectId | null; // Optional Sub-Agent ObjectId
+  revenue:number;
+  agentCommissionPercentage:number;
   agentCommissionFee: number;
   agentPaymentStatus: TCommissionPaymentStatus;
-  subAgentCommission: number;
+  subAgentCommissionPercentage:number;
+  subAgentCommissionFee: number;
   subAgentPaymentStatus: TCommissionPaymentStatus;
   fullName: string;
   phone: string;

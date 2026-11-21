@@ -17,6 +17,7 @@ import TipCategoryRoutes from "../modules/tipCategory/tipCategory.route";
 import HealthTipRoutes from "../modules/healthTip/healthTip.route";
 import TestReportRoutes from "../modules/testReport/testReport.route";
 import ConsultationRoutes from "../modules/consultation/consultation.route";
+import BlogRoutes from "../modules/blog/blog.route";
 
 const router = express.Router();
 
@@ -96,6 +97,10 @@ const moduleRoutes = [
   {
     path: "/consultation",
     route: ConsultationRoutes,
+  },
+  {
+    path: "/blog",
+    route: BlogRoutes,
   },
 ];
 

@@ -16,6 +16,7 @@ import {
   updateSubAgentCommissionValidationSchema,
   updateAgentPaymentStatusValidationSchema,
   updateSubAgentPaymentStatusValidationSchema,
+  updateRevenueValidationSchema,
 } from "./agentPatient.validation";
 import subAgentAuthMiddleware from "../../middlewares/subAgentAuthMIddleware";
 
@@ -41,6 +42,18 @@ router.get(
   "/status-stats/by-agent",
   authMiddleware(USER_ROLES.AGENT),
   AgentPatientController.getStatusStats,
+);
+
+router.get(
+  "/status-stats/by-sub-agent",
+  subAgentAuthMiddleware(),
+  AgentPatientController.getSubAgentStatusStats,
+);
+
+router.get(
+  "/sub-agent-stats",
+  subAgentAuthMiddleware(),
+  AgentPatientController.getSubAgentStatusStats,
 );
 
 /* ==================== Commission Stats (Cards & 12 Months Chart) ==================== */
@@ -189,13 +202,6 @@ router.patch(
   AgentPatientController.updateAgentCommission,
 );
 
-router.patch(
-  "/agent-commission/:patientId",
-  authMiddleware(USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
-  validationMiddleware(updateAgentCommissionValidationSchema),
-  AgentPatientController.updateAgentCommission,
-);
-
 /* ==================== Update Agent Payment Status ==================== */
 // Admin & Super Admin update payment status for agent commission
 router.patch(
@@ -221,13 +227,6 @@ router.patch(
   AgentPatientController.updateSubAgentCommission,
 );
 
-router.patch(
-  "/sub-agent-commission/:patientId",
-  authMiddleware(USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
-  validationMiddleware(updateSubAgentCommissionValidationSchema),
-  AgentPatientController.updateSubAgentCommission,
-);
-
 /* ==================== Update Sub-Agent Payment Status ==================== */
 // Admin & Super Admin update payment status for sub-agent commission
 router.patch(
@@ -242,6 +241,13 @@ router.patch(
   authMiddleware(USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
   validationMiddleware(updateSubAgentPaymentStatusValidationSchema),
   AgentPatientController.updateSubAgentPaymentStatus,
+);
+
+router.patch(
+  "/update-revenue/:patientId",
+  authMiddleware(USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN),
+  validationMiddleware(updateRevenueValidationSchema),
+  AgentPatientController.updateRevenue,
 );
 
 const AgentPatientRoutes = router;

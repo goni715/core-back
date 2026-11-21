@@ -16,6 +16,8 @@ const validationMiddleware = (schema: ZodType<any, any, any>) => {
         cookies: req.cookies || {},
       });
 
+    console.log(req.body)
+
       // assign parsed data
       if (parsedData.body) req.body = parsedData.body;
       if (parsedData.params) req.params = parsedData.params;

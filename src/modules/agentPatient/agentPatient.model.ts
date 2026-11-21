@@ -51,14 +51,25 @@ const agentPatientSchema = new Schema<IAgentPatient>(
     agentUserId: {
       type: Schema.Types.ObjectId,
       ref: "User",
-      required: [true, "agentUserId is required"],
+      required: false,
       index: true,
+      default: null,
     },
     subAgentId: {
       type: Schema.Types.ObjectId,
       ref: "ReferralPartner",
       default: null,
       index: true,
+    },
+    revenue: {
+      type: Number,
+      default: 0,
+      min: [0, "Revenue cannot be negative"],
+    },
+    agentCommissionPercentage: {
+      type: Number,
+      default: 0,
+      min: [0, "Agent commission Percentage cannot be negative"],
     },
     agentCommissionFee: {
       type: Number,
@@ -74,10 +85,15 @@ const agentPatientSchema = new Schema<IAgentPatient>(
       default: COMMISSION_PAYMENT_STATUS.UNPAID,
       index: true,
     },
-    subAgentCommission: {
+    subAgentCommissionPercentage: {
       type: Number,
       default: 0,
-      min: [0, "Sub agent commission cannot be negative"],
+      min: [0, "Referral Partner commission Percentage cannot be negative"],
+    },
+    subAgentCommissionFee: {
+      type: Number,
+      default: 0,
+      min: [0, "Referral Partner commission cannot be negative"],
     },
     subAgentPaymentStatus: {
       type: String,
@@ -168,28 +184,6 @@ const agentPatientSchema = new Schema<IAgentPatient>(
     toObject: { virtuals: true },
   },
 );
-
-// Virtual properties for easy frontend access
-agentPatientSchema.virtual("commissionFee").get(function () {
-  return this.agentCommissionFee ?? 0;
-});
-
-agentPatientSchema.virtual("paymentStatus").get(function () {
-  return this.agentPaymentStatus ?? COMMISSION_PAYMENT_STATUS.UNPAID;
-});
-
-agentPatientSchema.virtual("subAgentCommissionFee").get(function () {
-  return this.subAgentCommission ?? 0;
-});
-
-agentPatientSchema.virtual("totalCommissionFee").get(function () {
-  return (this.agentCommissionFee || 0) + (this.subAgentCommission || 0);
-});
-
-agentPatientSchema.virtual("totalCommission").get(function () {
-  return (this.agentCommissionFee || 0) + (this.subAgentCommission || 0);
-});
-
 
 // Indexes for query performance
 agentPatientSchema.index({ agentUserId: 1, status: 1 });

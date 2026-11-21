@@ -6,7 +6,7 @@ const createAgent = asyncHandler(async (req, res) => {
 
   res.status(200).json({
     success: true,
-    message: "Agent is created successfully",
+    message: "Channel partner is added successfully",
     data: result,
   });
 });
@@ -19,8 +19,8 @@ const approveOrRejectAgent = asyncHandler(async (req, res) => {
   );
   const message =
     req.body.approvalStatus === "approved"
-      ? "Agent has been approved and activated successfully"
-      : "Agent registration has been rejected";
+      ? "Channel partner has been approved and activated successfully"
+      : "Channel partner registration has been rejected";
 
   res.status(200).json({
     success: true,
@@ -35,7 +35,7 @@ const getAgents = asyncHandler(async (req, res) => {
   const result = await AgentService.getAgents(validatedQuery);
   res.status(200).json({
     success: true,
-    message: "Agents are retrieved successfully",
+    message: "Channel partners are retrieved successfully",
     meta: result.meta,
     data: result.data,
   });
@@ -46,7 +46,7 @@ const getSingleAgent = asyncHandler(async (req, res) => {
   const result = await AgentService.getSingleAgent(agentId as string);
   res.status(200).json({
     success: true,
-    message: "Agent is retrieved successfully",
+    message: "Channel partner is retrieved successfully",
     data: result,
   });
 });
@@ -56,7 +56,7 @@ const updateAgent = asyncHandler(async (req, res) => {
   const result = await AgentService.updateAgent(agentId as string, req);
   res.status(200).json({
     success: true,
-    message: "Agent is updated successfully",
+    message: "Channel partner is updated successfully",
     data: result,
   });
 });

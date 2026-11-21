@@ -32,5 +32,11 @@ router.get(
     AgentPatientController.getSubAgentCommissionStats,
 );
 
+router.get(
+    '/sub-agent-stats',
+    subAgentAuthMiddleware(),
+    DashboardController.getSubAgentStats,
+);
+
 const DashboardRoutes = router;
 export default DashboardRoutes;
