@@ -10,6 +10,7 @@ import ConflictError from "../../errors/ConflictError";
 import DoctorModel from "../doctor/doctor.model";
 import ReferralPartnerModel from "../referralPartner/referralPartner.model";
 import AgentModel from "../agent/agent.model";
+import { TAgentPayload } from "../agent/agent.interface";
 
 
 
@@ -167,7 +168,7 @@ const getMyProfile = async (userId: string, role: TUserRole) => {
         return doctors[0];
     }
 
-    if(role===USER_ROLES.AGENT){
+    if (role === USER_ROLES.AGENT) {
         const agents = await AgentModel.aggregate([
             {
                 $match: {
@@ -194,15 +195,15 @@ const getMyProfile = async (userId: string, role: TUserRole) => {
                     fullName: "$user.fullName",
                     email: "$user.email",
                     phone: "$user.phone",
-                    agencyName:"$agencyName",
-                    approvalStatus:"$approvalStatus",
+                    agencyName: "$agencyName",
+                    approvalStatus: "$approvalStatus",
                     lastLoginAt: "$user.lastLoginAt",
                     createdAt: "$user.createdAt",
                     updatedAt: "$user.updatedAt",
                 }
             }])
 
-            return agents[0]
+        return agents[0]
     }
 
     //if role is admin or super_admin
@@ -242,8 +243,8 @@ const getSubAgentProfile = async (subAgentId: string) => {
                 fullName: "$fullName",
                 email: "$email",
                 phone: "$phone",
-                agencyName:"$agencyName",
-                agentUserId:"$agentUserId",
+                agencyName: "$agencyName",
+                agentUserId: "$agentUserId",
                 agentName: "$user.fullName",
                 agentEmail: "$user.email",
                 agentPhone: "$user.phone",
@@ -311,11 +312,39 @@ const updateProfile = async (userId: string, req: any) => {
     }
 }
 
+const updateAgentProfile = async (loginAgentUserId: string, payload: Partial<TAgentPayload>) => {
+    if(payload.fullName){
+        await UserModel.updateOne(
+            { _id: loginAgentUserId },
+            { fullName: payload.fullName },
+        );
+    }
+
+
+    if(payload.agencyName){
+        await AgentModel.updateOne(
+            { userId: loginAgentUserId },
+            { agencyName: payload.agencyName },
+        );
+    }
+    return null
+}
+
+const updateSubAgentProfile = async (loginAgentUserId: string, payload: Partial<TAgentPayload>) => {
+    const result = await ReferralPartnerModel.updateOne(
+        { _id: loginAgentUserId },
+        payload,
+    );
+    return result;
+}
+
 const UserService = {
     getPatients,
     getMyProfile,
     getSubAgentProfile,
     updateProfile,
+    updateAgentProfile,
+    updateSubAgentProfile
 }
 
 export default UserService

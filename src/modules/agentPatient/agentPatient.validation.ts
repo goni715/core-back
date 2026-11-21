@@ -66,7 +66,7 @@ export const createAgentPatientValidationSchema = z.object({
       preferredCountry: requiredStringSchema("preferredCountry"),
       budgetRange: requiredStringSchema("budgetRange"),
       documentSource: enumSchema("documentSource", DOCUMENT_SOURCE_VALUES),
-      link: driveLinkUrlSchema,
+      link: requiredStringSchema("Link or whatsapp number is required"),
     })
 });
 

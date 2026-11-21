@@ -3,7 +3,7 @@ import UserController from "./user.controller";
 import authMiddleware from "../../middlewares/authMiddleware";
 import { USER_ROLES } from "./user.constant";
 import validationMiddleware from "../../middlewares/validationMiddleware";
-import { getPatientsValidationSchema, updateProfileValidationSchema } from "./user.validation";
+import { getPatientsValidationSchema, updateAgentProfileValidationSchema, updateProfileValidationSchema } from "./user.validation";
 import upload from "../../helpers/upload";
 import subAgentAuthMiddleware from "../../middlewares/subAgentAuthMIddleware";
 
@@ -33,6 +33,20 @@ router.patch(
     upload.single("image"),
     validationMiddleware(updateProfileValidationSchema),
     UserController.updateProfile
+);
+
+router.patch(
+    "/update-agent-profile",
+    authMiddleware(USER_ROLES.AGENT),
+    validationMiddleware(updateAgentProfileValidationSchema),
+    UserController.updateAgentProfile
+);
+
+router.patch(
+    "/update-sub-agent-profile",
+    subAgentAuthMiddleware(),
+    validationMiddleware(updateAgentProfileValidationSchema),
+    UserController.updateSubAgentProfile
 );
 
 

@@ -44,12 +44,34 @@ const updateProfile = asyncHandler(async (req, res) => {
     });
 })
 
+const updateAgentProfile = asyncHandler(async (req, res) => {
+    const { userId } = req.headers;
+    const result = await UserService.updateAgentProfile(userId as string, req.body);
+    res.status(200).json({
+        success: true,
+        message: "Profile is updated successfully",
+        data: result,
+    });
+})
+
+const updateSubAgentProfile = asyncHandler(async (req, res) => {
+    const { userId } = req.headers;
+    const result = await UserService.updateSubAgentProfile(userId as string, req.body);
+    res.status(200).json({
+        success: true,
+        message: "Profile is updated successfully",
+        data: result,
+    });
+})
+
 
 const UserController = {
     getPatients,
     getMyProfile,
     getSubAgentProfile,
     updateProfile,
+    updateAgentProfile,
+    updateSubAgentProfile
 }
 
 export default UserController

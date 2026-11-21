@@ -2,10 +2,19 @@ import z from "zod";
 import { fullNameZodSchema, phoneNumberZodSchema } from "../auth/auth.validation";
 import { ACCOUNT_STATUS_VALUES } from "./user.constant";
 import { enumSchema } from "../../schemas/enum.schema";
+import { requiredStringSchema } from "../../schemas/required.schema";
+
 export const updateProfileValidationSchema = z.object({
     body: z.object({
         fullName: fullNameZodSchema.optional(),
         phone: phoneNumberZodSchema.optional(),
+    }),
+});
+
+export const updateAgentProfileValidationSchema = z.object({
+    body: z.object({
+        fullName: fullNameZodSchema.optional(),
+        agencyName: requiredStringSchema("agencyName").optional(),
     }),
 });
 
